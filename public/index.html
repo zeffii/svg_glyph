@@ -37,7 +37,7 @@
 
 <main class="work">
   <aside class="glyphs">
-    <div class="phead"><span class="lbl">Glyph list</span><button id="bAdd">+ Add</button></div>
+    <div class="bar"><span>Glyph list</span><span class="barr"><span class="sum" id="sumList"></span><button id="bAdd" class="barbtn">+ Add</button></span></div>
     <div id="glist"></div>
   </aside>
 
@@ -48,73 +48,58 @@
 
   <aside class="insp">
     <div class="sec">
-      <span class="lbl">Glyph</span>
-      <div class="row">
-        <label>ID <input type="text" id="gid" spellcheck="false"></label>
-        <label>Advance <input type="number" id="gadv" min="0" step="10"></label>
-      </div>
+      <div class="bar"><span>Glyph</span><span class="sum" id="sumGlyph"></span></div>
+      <label class="kv"><span>ID</span><span class="vals"><input type="text" id="gid" spellcheck="false"></span></label>
+      <label class="kv"><span>Advance</span><span class="vals"><input type="number" id="gadv" min="0" step="10"></span></label>
       <div class="note" id="gidnote"></div>
-      <div class="row">
-        <button id="bDup" title="New glyph that is a copy of this one">Duplicate</button>
+      <div class="btns">
+        <button id="bDup" title="New glyph that is a copy of this one">Dup</button>
         <button id="bCopyG" title="Copy selected contours, or the whole glyph if nothing is selected (Ctrl+C)">Copy</button>
         <button id="bPasteG" title="Paste copied contours into this glyph (Ctrl+V)">Paste</button>
-        <button id="bDelG" class="danger">Delete glyph</button>
+        <button id="bDelG" class="danger" title="Delete this glyph (click twice)">Del</button>
       </div>
     </div>
 
     <div class="sec">
-      <span class="lbl">Points</span>
-      <div class="note" id="selinfo"></div>
-      <div class="row">
-        <label>X <input type="number" id="nx" step="1"></label>
-        <label>Y <input type="number" id="ny" step="1"></label>
-      </div>
-      <div class="row" role="group" aria-label="Point type">
-        <button id="pSharp" title="Remove handles">Sharp</button>
-        <button id="pSmooth" title="Aligned handles">Smooth</button>
-        <button id="pFree" title="Independent handles">Free</button>
-      </div>
-      <div class="row">
-        <button id="cClose">Close / open</button>
-        <button id="cRev">Reverse</button>
-        <button id="pDel" class="danger">Delete points</button>
-      </div>
+      <div class="bar"><span>Points</span><span class="sum" id="selinfo"></span></div>
+      <div class="kv"><span>Position</span><span class="vals"><input type="number" id="nx" step="1" aria-label="X"><input type="number" id="ny" step="1" aria-label="Y"></span></div>
+      <div class="kv"><span>Type</span><span class="vals" role="group" aria-label="Point type">
+        <button id="pSharp" title="Remove handles">Sharp</button><button id="pSmooth" title="Aligned handles">Smooth</button><button id="pFree" title="Independent handles">Free</button>
+      </span></div>
+      <div class="kv"><span>Contour</span><span class="vals">
+        <button id="cClose" title="Close or open the contour (C)">Close</button><button id="cRev" title="Reverse direction">Reverse</button><button id="pDel" class="danger" title="Delete selected points (Del)">Del pts</button>
+      </span></div>
     </div>
 
     <div class="sec">
-      <span class="lbl">Corners</span>
-      <div class="row one">
-        <label>Radius <input type="number" id="crad" min="0" step="5" value="40"></label>
-        <button id="bFillet" title="Round the selected corners with a circular arc">Fillet<kbd>R</kbd></button>
-        <button id="bChamfer" title="Cut the selected corners with a straight bevel">Chamfer<kbd>K</kbd></button>
-      </div>
-      <div class="note" id="cnote">Select sharp corner points between two straight lines.</div>
+      <div class="bar"><span>Corners</span><span class="sum" id="sumCorner"></span></div>
+      <div class="kv"><span>Radius</span><span class="vals nowrap">
+        <input type="number" id="crad" min="0" step="5" value="40" aria-label="Radius">
+        <button id="bFillet" title="Round the selected corners with a circular arc">Fillet<kbd>R</kbd></button><button id="bChamfer" title="Cut the selected corners with a straight bevel">Chamfer<kbd>K</kbd></button>
+      </span></div>
+      <div class="note" id="cnote">Select sharp corners between two straight lines.</div>
     </div>
 
     <div class="sec">
-      <div class="row" style="justify-content:space-between"><span class="lbl">Path data (d)</span><button id="bCopyD">Copy</button></div>
-      <div class="dwrap"><pre id="dhl" aria-hidden="true"></pre><textarea id="dtext" spellcheck="false" aria-label="Path data for this glyph"></textarea></div>
+      <div class="bar"><span>Path data</span><span class="barr"><span class="sum" id="sumPath"></span><button id="bCopyD" class="barbtn">Copy</button></span></div>
+      <div class="pad"><div class="dwrap"><pre id="dhl" aria-hidden="true"></pre><textarea id="dtext" spellcheck="false" aria-label="Path data for this glyph"></textarea></div></div>
       <div class="note" id="dnote">Edit to reshape the glyph. M L H V C S Q T Z, absolute or relative.</div>
     </div>
 
     <div class="sec">
-      <span class="lbl">Font metrics (units, em = 1000)</span>
-      <div class="row">
-        <label>Cap <input type="number" id="mCap"></label>
-        <label>x-height <input type="number" id="mXh"></label>
-      </div>
-      <div class="row">
-        <label>Baseline <input type="number" id="mBase"></label>
-        <label>Descender <input type="number" id="mDesc"></label>
-      </div>
+      <div class="bar"><span>Metrics</span><span class="sum">em 1000</span></div>
+      <label class="kv"><span>Cap</span><span class="vals"><input type="number" id="mCap"></span></label>
+      <label class="kv"><span>x-height</span><span class="vals"><input type="number" id="mXh"></span></label>
+      <label class="kv"><span>Baseline</span><span class="vals"><input type="number" id="mBase"></span></label>
+      <label class="kv"><span>Descender</span><span class="vals"><input type="number" id="mDesc"></span></label>
     </div>
-
   </aside>
 </main>
 
 <footer class="preview">
+  <div class="bar"><span>Proof</span><span class="sum" id="sumProof"></span></div>
   <div class="row">
-    <label>Proof <input type="text" id="ptext" spellcheck="false"></label>
+    <label>Text <input type="text" id="ptext" spellcheck="false"></label>
     <label>Tracking <input type="number" id="ptrack" step="5"></label>
     <label>Space <input type="number" id="pspace" step="10"></label>
     <button id="bCopySvg">Copy SVG</button>

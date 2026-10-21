@@ -2,6 +2,18 @@
 
 Newest first. Each numbered entry is one build; the number shows in the app header next to the commit.
 
+## 006 · 2026-10-21
+
+- Tidier panels using header strips (option C). Every section has a darker title bar with a live summary on the right:
+  - Glyph list: count and + Add.
+  - Glyph: ID, contour count and point count.
+  - Points: selection count.
+  - Corners: current radius.
+  - Path data: length, with the Copy button on the bar.
+  - Proof: glyph count and total width.
+- Inspector rows use a fixed label column so values line up. X and Y share a Position row. Point type and contour actions have their own labelled rows. Buttons are shorter: Dup, Del, Del pts.
+- Radius, Fillet and Chamfer stay on one row.
+
 ## 005 · 2026-10-21
 
 - The header shows the build number and commit, e.g. `build 005 · f7594fe`. On Pages the deploy writes it; locally `serve.mjs` reads it from git, with `+` when there are uncommitted changes.

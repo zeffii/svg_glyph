@@ -425,7 +425,12 @@ function renderInspector() {
   $('#nx').disabled = $('#ny').disabled = !one;
   setVal('#nx', one ? R(one.x) : ''); setVal('#ny', one ? R(one.y) : '');
   const nc = new Set([...sel].map(k => unkey(k)[0])).size;
-  $('#selinfo').textContent = sel.size ? `${sel.size} point${sel.size > 1 ? 's' : ''} in ${nc} contour${nc > 1 ? 's' : ''} selected` : `${g.contours.length} contour${g.contours.length === 1 ? '' : 's'}, nothing selected`;
+  $('#selinfo').textContent = sel.size ? `${sel.size} sel · ${nc} ctr` : 'none sel';
+  const pts = g.contours.reduce((n, c) => n + c.nodes.length, 0);
+  $('#sumGlyph').textContent = `${g.id} · ${g.contours.length} ctr · ${pts} pts`;
+  $('#sumCorner').textContent = `r ${cornerR}`;
+  $('#sumPath').textContent = `${glyphD(g).length} ch`;
+  $('#sumList').textContent = `${font.glyphs.length}`;
   for (const id of ['#pSharp', '#pSmooth', '#pFree', '#cClose', '#cRev', '#pDel']) $(id).disabled = !sel.size && !(active !== null && ['#cClose', '#cRev'].includes(id));
   const dt = $('#dtext');
   if (document.activeElement !== dt) { dt.value = glyphD(g); $('#dnote').className = 'note'; $('#dnote').textContent = 'Edit to reshape the glyph. M L H V C S Q T Z, absolute or relative.'; }
@@ -469,6 +474,8 @@ function renderPreview() {
     else s += `<path data-gi="${it.gi}" fill-rule="evenodd" transform="translate(${R(it.x)} 0)" d="${glyphD(it.g)}"><title>${esc(it.g.id)}</title></path>`;
   }
   sv.innerHTML = s;
+  const ng = items.filter(i => i.g).length;
+  $('#sumProof').textContent = `${ng} glyph${ng === 1 ? '' : 's'} · ${R(width)} units wide`;
   setVal('#ptext', ptext); setVal('#ptrack', font.tracking); setVal('#pspace', font.space);
 }
 function render() {
@@ -876,8 +883,8 @@ let delArm = 0;
 $('#bDelG').onclick = () => {
   const b = $('#bDelG');
   if (font.glyphs.length < 2) { $('#gidnote').className = 'note err'; $('#gidnote').textContent = 'Keep at least one glyph.'; return; }
-  if (!b.classList.contains('armed')) { b.classList.add('armed'); b.textContent = `Delete “${G().id}”?`; clearTimeout(delArm); delArm = setTimeout(() => { b.classList.remove('armed'); b.textContent = 'Delete glyph'; }, 3000); return; }
-  clearTimeout(delArm); b.classList.remove('armed'); b.textContent = 'Delete glyph';
+  if (!b.classList.contains('armed')) { b.classList.add('armed'); b.textContent = `Del “${G().id}”?`; clearTimeout(delArm); delArm = setTimeout(() => { b.classList.remove('armed'); b.textContent = 'Del'; }, 3000); return; }
+  clearTimeout(delArm); b.classList.remove('armed'); b.textContent = 'Del';
   edit(() => { font.glyphs.splice(cur, 1); cur = Math.min(cur, font.glyphs.length - 1); sel.clear(); active = null; });
   fit(); render();
 };

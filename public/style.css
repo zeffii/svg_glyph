@@ -1,7 +1,7 @@
 /* Layout: oldschool tracker-style tool panels: flat dark surfaces, monospaced everything, inset fields, blue row highlight. Single dark look by design. */
 :root{
   --bg:#1E1E1E; --line:#3A3A3A; --fg:#D4D4D4; --muted:#8E8E8E; --dim:#666;
-  --field:#2D2D2D; --field-hi:#3E3E3E; --rowsel:#3B6AA0;
+  --field:#2D2D2D; --bar:#2A2A2A; --field-hi:#3E3E3E; --rowsel:#3B6AA0;
   --board:#151515; --gridline:#202020; --guide:#A88A2E; --cyan:#4FB6E0; --magenta:#E2588F;
   --shape-fill:rgba(212,212,212,.08); --cmd:#7DD3FC; --par:#5CCB7E; --red:#F0524F;
   --mono:Consolas,"Cascadia Mono","JetBrains Mono",ui-monospace,Menlo,monospace;
@@ -36,7 +36,7 @@ kbd{font-family:inherit;color:var(--dim);margin-left:1ch}
 .top .spacer{flex:1}
 
 .work{display:grid;grid-template-columns:220px minmax(0,1fr) 310px;min-height:0}
-.glyphs{border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;padding-top:6px}
+.glyphs{border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
 .phead{display:flex;justify-content:space-between;align-items:center;padding:0 8px 4px}
 #glist{overflow:auto;display:flex;flex-direction:column}
 .grow{display:grid;grid-template-columns:1ch 58px minmax(0,1fr);grid-template-rows:repeat(3,1.45em);gap:0 1ch;align-items:center;text-align:left;padding:3px 8px;background:transparent;width:100%}
@@ -93,14 +93,26 @@ kbd{font-family:inherit;color:var(--dim);margin-left:1ch}
 #cv .lnk.on.hot rect{stroke:var(--fg)}
 #cv .marq{fill:var(--cyan);fill-opacity:.08;stroke:var(--cyan);stroke-width:1;stroke-dasharray:3 3}
 
-.insp{border-left:1px solid var(--line);overflow:auto;min-height:0;padding-top:6px}
-.sec{padding:0 12px 14px;display:flex;flex-direction:column;gap:3px}
+.insp{border-left:1px solid var(--line);overflow:auto;min-height:0}
+.sec{padding:0 0 10px;display:flex;flex-direction:column;gap:3px}
+.bar{display:flex;justify-content:space-between;align-items:center;gap:1ch;background:var(--bar);padding:1px 10px;min-height:1.7em}
+.bar .sum{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.barr{display:flex;align-items:center;gap:1ch;min-width:0}
+.barbtn{padding:0 6px}
+.sec>.bar{margin-bottom:3px}
+.kv{display:grid;grid-template-columns:9ch minmax(0,1fr);gap:0 1ch;align-items:center;padding:0 10px}
+.kv>span:first-child{color:var(--muted)}
+.vals{display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-width:0}
+.vals.nowrap{flex-wrap:nowrap}
+.vals.nowrap #crad{width:6ch}
+.btns{display:flex;flex-wrap:wrap;gap:4px;padding:2px 10px}
+.pad{padding:0 10px}
+.sec>.note{padding:0 10px}
 .row{display:flex;flex-wrap:wrap;gap:3px 2ch;align-items:center}
 .row label{flex:0 0 auto}
-.row.one{flex-wrap:nowrap;gap:1ch}
-.row.one #crad{width:6ch}
 .ver{color:var(--dim);font-variant-numeric:tabular-nums}
 #gid{width:12ch}
+.kv #nx,.kv #ny{width:7ch}
 .note{color:var(--muted);min-height:1.45em}
 .note.err{color:var(--magenta)}
 textarea{width:100%;box-sizing:border-box;background:var(--field);border:0;border-radius:0;padding:4px 6px;font:12px/1.5 var(--mono);resize:vertical}
@@ -112,9 +124,10 @@ textarea{width:100%;box-sizing:border-box;background:var(--field);border:0;borde
 .keys{color:var(--muted);display:grid;grid-template-columns:auto 1fr;gap:1px 2ch;font-size:12px}
 .keys code{font-family:inherit;color:var(--fg);white-space:nowrap}
 
-.preview{border-top:1px solid var(--line);padding-block:6px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:4px}
+.preview{border-top:1px solid var(--line);padding-block:0 6px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:4px}
 .preview .row{gap:4px 3ch}
 #ptext{width:24ch;max-width:100%}
+.preview>.bar{margin-left:calc(-1 * max(16px, env(safe-area-inset-left, 0px)));margin-right:calc(-1 * max(16px, env(safe-area-inset-right, 0px)));padding-left:max(16px, env(safe-area-inset-left, 0px))}
 #pwrap{overflow-x:auto;background:var(--board)}
 #pview{display:block;height:110px}
 #pview path{fill:var(--fg);cursor:pointer}
