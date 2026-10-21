@@ -2,6 +2,13 @@
 
 Newest first. Each delivery zip is numbered (`glyphpath-NNN.zip`) and matches one entry here.
 
+## 003 · 2026-10-21
+
+- Collinear arms can be locked and unlinked with a chain icon (green when locked, grey when open).
+  - **Point:** select a point whose two arms are in line and click the icon beside it. Locking keeps both arms on one line, the same as Smooth; unlinking makes it Free.
+  - **Segment:** when a segment's two facing arms both lie on the line through its points, an icon appears between them. Locked arms stay on that line while you drag handles or move either point.
+  - Locks are cleared when the segment is split, flattened with B, or loses a point. Reversing a contour keeps them.
+
 ## 002 · 2026-10-21
 
 - Control arms that line up with an adjacent arm are highlighted green. Adjacent means the other arm of the same point, or the facing arm across a segment. A solid green arm is on the same infinite line; a dashed green arm is parallel but offset. The tolerance is 0.5°.

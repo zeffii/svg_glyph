@@ -85,6 +85,12 @@ kbd{font-family:inherit;color:var(--dim);margin-left:1ch}
 #cv .fr{fill:none;stroke:var(--cmd);stroke-width:1;stroke-dasharray:2 3;opacity:.45}
 #cv .fr.hot{opacity:.9}
 #cv .flabel{fill:var(--cmd);font:12px var(--mono)}
+#cv .lnk{cursor:pointer}
+#cv .lnk .bg{fill:var(--board);fill-opacity:.85;stroke:none}
+#cv .lnk rect{fill:none;stroke:var(--muted);stroke-width:1.6}
+#cv .lnk.on rect{stroke:var(--par)}
+#cv .lnk.hot rect{stroke:var(--fg)}
+#cv .lnk.on.hot rect{stroke:var(--fg)}
 #cv .marq{fill:var(--cyan);fill-opacity:.08;stroke:var(--cyan);stroke-width:1;stroke-dasharray:3 3}
 
 .insp{border-left:1px solid var(--line);overflow:auto;min-height:0;padding-top:6px}

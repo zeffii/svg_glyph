@@ -25,7 +25,7 @@ let font, cur = 0, sel = new Set(), active = null, tool = 'select';
 let view = { k: .5, tx: 0, ty: 0 }, drag = null, hover = null, hoverS = null, spaceDown = false;
 let refSeg = null, parOn = true, flashMsg = '', flashT = 0, hoverSeg = null;
 let cornerR = 40, lastCorner = null, cornerMode = null, hoverF = null, focusSeg = null, focusFil = null;
-let hoverH = null, armed = new Set();
+let hoverH = null, armed = new Set(), hoverLink = null;
 const PAR_EXACT = .3 * Math.PI / 180, PAR_NEAR = 3 * Math.PI / 180;
 const lineAngDiff = (a, b) => { let d = ((a - b) % Math.PI + Math.PI) % Math.PI; return Math.min(d, Math.PI - d); };
 function flash(m) { flashMsg = m; clearTimeout(flashT); flashT = setTimeout(() => { flashMsg = ''; requestRender(); }, 3000); requestRender(); }
@@ -79,7 +79,7 @@ function commit(before) {
 function undo() { if (!undoS.length) return; redoS.push(snapshot()); font = JSON.parse(undoS.pop()); afterHistory(); }
 function redo() { if (!redoS.length) return; undoS.push(snapshot()); font = JSON.parse(redoS.pop()); afterHistory(); }
 function afterHistory() { cur = Math.min(cur, font.glyphs.length - 1); sel.clear(); active = null; refSeg = null; hoverSeg = null; focusSeg = null; focusFil = null; armed.clear(); save(); render(); }
-function edit(fn) { const b = snapshot(); fn(); commit(b); render(); }
+function edit(fn) { const b = snapshot(); fn(); enforceLocks(); commit(b); render(); }
 
 /* ---------- geometry ---------- */
 const toScreen = p => ({ x: p.x * view.k + view.tx, y: p.y * view.k + view.ty });
@@ -104,9 +104,72 @@ function insertAt(ci, ai, t) {
     const p01 = lerp(Q[0], Q[1]), p12 = lerp(Q[1], Q[2]), p23 = lerp(Q[2], Q[3]), p012 = lerp(p01, p12), p123 = lerp(p12, p23), p = lerp(p012, p123);
     a.o = p01; b.i = p23; n = N(p.x, p.y); n.i = p012; n.o = p123; n.s = true;
   }
-  c.nodes.splice(ai + 1, 0, n); return ai + 1;
+  delete a.lo; c.nodes.splice(ai + 1, 0, n); return ai + 1;
 }
-function reverseContour(c) { c.nodes.reverse(); c.nodes.forEach(n => { const t = n.i; n.i = n.o; n.o = t; }); }
+function reverseContour(c) {
+  // A segment lock lives on the segment's first node; after reversing, that segment starts at the other end.
+  const L = c.nodes.length, locks = c.nodes.map(n => !!n.lo);
+  c.nodes.forEach(n => { delete n.lo; });
+  locks.forEach((on, i) => { if (on) c.nodes[(i + 1) % L].lo = true; });
+  c.nodes.reverse(); c.nodes.forEach(n => { const t = n.i; n.i = n.o; n.o = t; });
+}
+/* ---------- arm locks ----------
+   Point lock: both arms of a point stay on one line (this is the point's smooth flag, n.s).
+   Segment lock (A.lo): the facing arms A.o and B.i stay on the infinite line through A and B. */
+const LINK_TOL = .5 * Math.PI / 180;
+function enforceLocks() {
+  for (let pass = 0; pass < 2; pass++) G().contours.forEach(c => {
+    const L = c.nodes.length;
+    segments(c).forEach(ai => {
+      const A = c.nodes[ai]; if (!A.lo) return;
+      const B = c.nodes[(ai + 1) % L];
+      if (!A.o || !B.i) { delete A.lo; return; }
+      const dx = B.x - A.x, dy = B.y - A.y, l = Math.hypot(dx, dy); if (l < 1e-6) return;
+      const ux = dx / l, uy = dy / l;
+      const put = (n, h) => {
+        const hx = n[h].x - n.x, hy = n[h].y - n.y, len = Math.hypot(hx, hy), sg = hx * ux + hy * uy >= 0 ? 1 : -1;
+        n[h] = { x: n.x + ux * sg * len, y: n.y + uy * sg * len };
+        const oh = h === 'o' ? 'i' : 'o';
+        if (n.s && n[oh] && len > 1e-6) {
+          const ol = Math.hypot(n[oh].x - n.x, n[oh].y - n.y);
+          n[oh] = { x: n.x - ux * sg * ol, y: n.y - uy * sg * ol };
+        }
+      };
+      put(A, 'o'); put(B, 'i');
+    });
+  });
+}
+function linkSpots(g) {
+  const out = [], ang = (n, h) => Math.atan2(n[h].y - n.y, n[h].x - n.x), real = (n, h) => n[h] && Math.hypot(n[h].x - n.x, n[h].y - n.y) > 1e-6;
+  g.contours.forEach((c, ci) => {
+    const L = c.nodes.length;
+    c.nodes.forEach((n, ni) => {
+      if (!real(n, 'i') || !real(n, 'o') || !sel.has(key(ci, ni))) return;
+      const b = ang(n, 'o');
+      if (!n.s && lineAngDiff(ang(n, 'i'), b) >= LINK_TOL) return;
+      const p = toScreen(n);
+      out.push({ kind: 'node', ci, ni, locked: !!n.s, ang: b, x: p.x - Math.sin(b) * 18, y: p.y + Math.cos(b) * 18 });
+    });
+    segments(c).forEach(ai => {
+      const A = c.nodes[ai], B = c.nodes[(ai + 1) % L];
+      if (!real(A, 'o') || !real(B, 'i')) return;
+      const ab = Math.atan2(B.y - A.y, B.x - A.x);
+      if (!A.lo && !(lineAngDiff(ang(A, 'o'), ab) < LINK_TOL && lineAngDiff(ang(B, 'i'), ab) < LINK_TOL)) return;
+      const p = toScreen({ x: (A.o.x + B.i.x) / 2, y: (A.o.y + B.i.y) / 2 });
+      out.push({ kind: 'seg', ci, ai, locked: !!A.lo, ang: ab, x: p.x - Math.sin(ab) * 16, y: p.y + Math.cos(ab) * 16 });
+    });
+  });
+  return out;
+}
+function toggleLink(Lk) {
+  let on = false;
+  edit(() => {
+    const c = G().contours[Lk.ci];
+    if (Lk.kind === 'node') { const n = c.nodes[Lk.ni]; n.s = !n.s; if (n.s) alignHandles(n); on = n.s; }
+    else { const A = c.nodes[Lk.ai]; if (A.lo) delete A.lo; else A.lo = true; on = !!A.lo; }
+  });
+  flash(on ? (Lk.kind === 'node' ? 'Point arms locked on one line.' : 'Segment arms locked to the line through its points.') : 'Unlinked.');
+}
 function autoSmooth(c, ni) {
   const L = c.nodes.length, n = c.nodes[ni];
   const hasP = c.closed || ni > 0, hasN = c.closed || ni < L - 1;
@@ -166,6 +229,7 @@ function setFillet(c, f, r) {
 }
 function hit(sx, sy) {
   const g = G(), near = p => { const s = toScreen(p); return Math.hypot(s.x - sx, s.y - sy) <= 7; };
+  for (const Lk of linkSpots(g)) if (Math.hypot(Lk.x - sx, Lk.y - sy) <= 10) return { type: 'link', Lk };
   for (let ci = g.contours.length - 1; ci >= 0; ci--) {
     const c = g.contours[ci];
     for (let ai = 0; ai < c.nodes.length; ai++) if (c.nodes[ai].o) { const f = filletInfo(c, ai); if (f && near(f.C)) return { type: 'fcenter', ci, ai }; }
@@ -317,6 +381,13 @@ function renderCanvas() {
     s += `<circle class="fcd" cx="${R(Cs.x)}" cy="${R(Cs.y)}" r="7"/><path class="fc" d="M${R(Cs.x - 4)} ${R(Cs.y)}h8M${R(Cs.x)} ${R(Cs.y - 4)}v8"/>`;
     if (hot) s += `<text class="flabel" x="${R(Cs.x + 12)}" y="${R(Cs.y - 10)}">r ${R(f.r)}</text>`;
   }));
+  for (const Lk of linkSpots(g)) {
+    const hot = hoverLink && hoverLink.kind === Lk.kind && hoverLink.ci === Lk.ci && (Lk.kind === 'node' ? hoverLink.ni === Lk.ni : hoverLink.ai === Lk.ai);
+    const links = Lk.locked
+      ? '<rect x="-8.5" y="-3.5" width="10" height="7" rx="3.5"/><rect x="-1.5" y="-3.5" width="10" height="7" rx="3.5"/>'
+      : '<rect x="-11" y="-3.5" width="8" height="7" rx="3.5"/><rect x="3" y="-3.5" width="8" height="7" rx="3.5"/>';
+    s += `<g class="lnk${Lk.locked ? ' on' : ''}${hot ? ' hot' : ''}" transform="translate(${R(Lk.x)} ${R(Lk.y)}) rotate(${R(Lk.ang * 180 / Math.PI)})"><circle class="bg" r="10"/>${links}</g>`;
+  }
   if (cornerMode && hover && cornerMode.gi === cur) {
     const a = toScreen(cornerMode.ref), b = toScreen(hover);
     s += `<line class="cguide" x1="${R(a.x)}" y1="${R(a.y)}" x2="${R(b.x)}" y2="${R(b.y)}"/><text class="clabel" x="${R(b.x + 12)}" y="${R(b.y - 12)}">${cornerMode.type === 'fillet' ? 'radius' : 'cut'} ${cornerMode.r}</text>`;
@@ -434,6 +505,7 @@ function startMove(h, e, w, before, keepSel) {
 cv.addEventListener('pointerdown', e => {
   const { sx, sy } = local(e), w = toWorld(sx, sy);
   if (cornerMode) { e.preventDefault(); finishCorner(e.button === 0); return; }
+  if (e.button === 0 && !spaceDown) { const hl = hit(sx, sy); if (hl && hl.type === 'link') { toggleLink(hl.Lk); return; } }
   cv.setPointerCapture(e.pointerId);
   if (e.button === 1 || (e.button === 0 && spaceDown)) { e.preventDefault(); drag = { kind: 'pan', sx, sy, tx: view.tx, ty: view.ty }; return; }
   if (e.button !== 0) return;
@@ -500,11 +572,13 @@ window.addEventListener('pointermove', e => {
     const h = spaceDown ? null : hit(sx, sy);
     const hs = h && h.type === 'seg' ? { ci: h.ci, ai: h.ni } : null;
     if ((hs && key(hs.ci, hs.ai)) !== (hoverSeg && key(hoverSeg.ci, hoverSeg.ai))) { hoverSeg = hs; requestRender(); }
+    const hl = h && h.type === 'link' ? h.Lk : null;
+    if (JSON.stringify(hl) !== JSON.stringify(hoverLink)) { hoverLink = hl; requestRender(); }
     const hh = h && h.type === 'handle' ? `${h.ci}:${h.ni}:${h.h}` : null;
     if (hh !== hoverH) { hoverH = hh; requestRender(); }
     const hf = h && h.type === 'fcenter' ? key(h.ci, h.ai) : null;
     if (hf !== hoverF) { hoverF = hf; requestRender(); }
-    cv.style.cursor = spaceDown ? 'grab' : h ? (h.type === 'adv' ? 'ew-resize' : h.type === 'seg' ? (e.shiftKey ? 'move' : tool === 'pen' ? 'copy' : 'pointer') : 'move') : (tool === 'pen' ? 'crosshair' : 'default');
+    cv.style.cursor = spaceDown ? 'grab' : h ? (h.type === 'adv' ? 'ew-resize' : h.type === 'link' ? 'pointer' : h.type === 'seg' ? (e.shiftKey ? 'move' : tool === 'pen' ? 'copy' : 'pointer') : 'move') : (tool === 'pen' ? 'crosshair' : 'default');
     if (tool === 'pen' && active !== null) requestRender();
     return;
   }
@@ -552,6 +626,7 @@ window.addEventListener('pointermove', e => {
       break;
     }
   }
+  if (drag.kind !== 'pan' && drag.kind !== 'marquee') enforceLocks();
   requestRender();
 });
 window.addEventListener('pointerup', () => {
@@ -571,7 +646,7 @@ cv.addEventListener('wheel', e => {
 function toggleSeg(ci, ai) {
   edit(() => {
     const c = G().contours[ci], a = c.nodes[ai], b = c.nodes[(ai + 1) % c.nodes.length];
-    if (a.o || b.i) { a.o = null; b.i = null; delete a.fil; a.s = isAligned(a); b.s = isAligned(b); }
+    if (a.o || b.i) { a.o = null; b.i = null; delete a.fil; delete a.lo; a.s = isAligned(a); b.s = isAligned(b); }
     else {
       const dx = b.x - a.x, dy = b.y - a.y;
       a.o = { x: R(a.x + dx / 3), y: R(a.y + dy / 3) };
@@ -737,7 +812,11 @@ function deleteSelected() {
   if (!sel.size) return;
   edit(() => {
     const g = G(), m = selByContour();
-    g.contours.forEach((c, ci) => { const del = m.get(ci); if (del) c.nodes = c.nodes.filter((_, i) => !del.includes(i)); });
+    g.contours.forEach((c, ci) => {
+      const del = m.get(ci); if (!del) return;
+      const L = c.nodes.length; del.forEach(i => { delete c.nodes[(i - 1 + L) % L].lo; });
+      c.nodes = c.nodes.filter((_, i) => !del.includes(i));
+    });
     g.contours = g.contours.filter(c => c.nodes.length >= 2);
     sel.clear(); active = null;
   });
