@@ -2,6 +2,10 @@
 
 Newest first. Each delivery zip is numbered (`glyphpath-NNN.zip`) and matches one entry here.
 
+## 002 · 2026-10-21
+
+- Control arms that line up with an adjacent arm are highlighted green. Adjacent means the other arm of the same point, or the facing arm across a segment. A solid green arm is on the same infinite line; a dashed green arm is parallel but offset. The tolerance is 0.5°.
+
 ## 001 · 2026-10-21
 
 First numbered delivery. Everything built so far:

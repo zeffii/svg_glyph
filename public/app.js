@@ -267,12 +267,34 @@ function renderCanvas() {
       s += `<line class="hov" x1="${R(A.x)}" y1="${R(A.y)}" x2="${R(B.x)}" y2="${R(B.y)}"/>`;
     }
   }
-  let lines = '', hds = '', ans = '';
+  // Control arms that line up with an adjacent arm: the other arm of the same point, or the facing arm across a segment.
+  // Same infinite line = solid green; parallel but offset = dashed green.
+  const armState = new Map(), ARM_TOL = .5 * Math.PI / 180;
+  const armAng = (n, h) => { const dx = n[h].x - n.x, dy = n[h].y - n.y; return Math.hypot(dx, dy) > 1e-6 ? Math.atan2(dy, dx) : null; };
+  const markArm = (k, v) => { if (armState.get(k) !== 'col') armState.set(k, v); };
+  g.contours.forEach((c, ci) => {
+    const L = c.nodes.length;
+    c.nodes.forEach((n, ni) => {
+      if (!n.i || !n.o) return;
+      const a = armAng(n, 'i'), b = armAng(n, 'o');
+      if (a !== null && b !== null && lineAngDiff(a, b) < ARM_TOL) { markArm(`${ci}:${ni}:i`, 'col'); markArm(`${ci}:${ni}:o`, 'col'); }
+    });
+    segments(c).forEach(ai => {
+      const bi = (ai + 1) % L, A = c.nodes[ai], B = c.nodes[bi];
+      if (!A.o || !B.i) return;
+      const a = armAng(A, 'o'), b = armAng(B, 'i');
+      if (a === null || b === null || lineAngDiff(a, b) >= ARM_TOL) return;
+      const st = lineAngDiff(a, Math.atan2(B.y - A.y, B.x - A.x)) < ARM_TOL ? 'col' : 'par';
+      markArm(`${ci}:${ai}:o`, st); markArm(`${ci}:${bi}:i`, st);
+    });
+  });
+  let lines = '', linesC = '', linesP = '', hds = '', ans = '';
   g.contours.forEach((c, ci) => c.nodes.forEach((n, ni) => {
     const a = toScreen(n);
     for (const h of ['i', 'o']) if (n[h]) {
       const b = toScreen(n[h]);
-      lines += `M${R(a.x)} ${R(a.y)}L${R(b.x)} ${R(b.y)}`;
+      const arm = `M${R(a.x)} ${R(a.y)}L${R(b.x)} ${R(b.y)}`, st = armState.get(`${ci}:${ni}:${h}`);
+      if (st === 'col') linesC += arm; else if (st === 'par') linesP += arm; else lines += arm;
       const hot = hoverH === `${ci}:${ni}:${h}` || armed.has(`${ci}:${ni}:${h}`) || (drag && drag.kind === 'handle' && drag.k === key(ci, ni) && drag.h === h);
       hds += `<circle class="hd${hot ? ' hot' : ''}" cx="${R(b.x)}" cy="${R(b.y)}" r="${hot ? 4.5 : 3.5}"/>`;
     }
@@ -280,7 +302,7 @@ function renderCanvas() {
     if (ni === 0) ans += `<circle class="start" cx="${R(a.x)}" cy="${R(a.y)}" r="8.5"/>`;
     ans += n.s ? `<circle class="${cls}" cx="${R(a.x)}" cy="${R(a.y)}" r="4.5"/>` : `<rect class="${cls}" x="${R(a.x - 4)}" y="${R(a.y - 4)}" width="8" height="8"/>`;
   }));
-  s += `<path class="hl" d="${lines}"/>${hds}${ans}`;
+  s += `<path class="hl" d="${lines}"/><path class="hl col" d="${linesC}"/><path class="hl par" d="${linesP}"/>${hds}${ans}`;
   g.contours.forEach((c, ci) => c.nodes.forEach((n, ai) => {
     if (!n.o) return;
     const f = filletInfo(c, ai); if (!f) return;
