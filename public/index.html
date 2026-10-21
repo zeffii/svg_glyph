@@ -9,7 +9,7 @@
 </head>
 <body>
 <header class="top">
-  <div class="brand">Glyphpath <small>logo &amp; glyph path editor</small></div>
+  <div class="brand">Glyphpath <small>logo &amp; glyph path editor</small> <small id="ver" class="ver"></small></div>
   <div class="group" role="group" aria-label="Tool">
     <button id="tSelect" class="tab on" title="Select and edit points">Select<kbd>V</kbd></button>
     <button id="tPen" class="tab" title="Draw points">Pen<kbd>P</kbd></button>
@@ -17,6 +17,7 @@
   <div class="group">
     <label><input type="checkbox" id="snap" checked> Snap</label>
     <label title="When you click or move a line, highlight lines parallel to it (solid) or nearly parallel (dashed)"><input type="checkbox" id="parOn" checked> Parallels</label>
+    <label title="Show the baseline and descender guides (G)"><input type="checkbox" id="lowerOn" checked> Base/desc</label>
     <label>Grid <input type="number" id="grid" min="1" max="200" value="10"></label>
   </div>
   <div class="group">
@@ -82,7 +83,7 @@
 
     <div class="sec">
       <span class="lbl">Corners</span>
-      <div class="row">
+      <div class="row one">
         <label>Radius <input type="number" id="crad" min="0" step="5" value="40"></label>
         <button id="bFillet" title="Round the selected corners with a circular arc">Fillet<kbd>R</kbd></button>
         <button id="bChamfer" title="Cut the selected corners with a straight bevel">Chamfer<kbd>K</kbd></button>
@@ -127,6 +128,7 @@
     <div class="row" style="justify-content:space-between"><h2 id="kh">Keys</h2><button id="kClose">Close<kbd>H</kbd></button></div>
     <div class="keys">
         <code>V / P</code><span>Select / pen</span>
+        <code>G</code><span>Show / hide the baseline and descender guides</span>
         <code>Esc</code><span>Finish contour, clear selection</span>
         <code>C</code><span>Close (or open) the current contour</span>
         <code>Shift-drag line</code><span>Move that segment (both its points)</span>

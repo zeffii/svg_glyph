@@ -23,7 +23,7 @@ function sampleFont() {
 /* ---------- state ---------- */
 let font, cur = 0, sel = new Set(), active = null, tool = 'select';
 let view = { k: .5, tx: 0, ty: 0 }, drag = null, hover = null, hoverS = null, spaceDown = false;
-let refSeg = null, parOn = true, flashMsg = '', flashT = 0, hoverSeg = null;
+let showLower = true, refSeg = null, parOn = true, flashMsg = '', flashT = 0, hoverSeg = null;
 let cornerR = 40, lastCorner = null, cornerMode = null, hoverF = null, focusSeg = null, focusFil = null;
 let hoverH = null, armed = new Set(), hoverLink = null;
 const PAR_EXACT = .3 * Math.PI / 180, PAR_NEAR = 3 * Math.PI / 180;
@@ -38,10 +38,10 @@ const nodeOf = k => { const [ci, ni] = unkey(k); return G().contours[ci]?.nodes[
 const sn = v => snapOn ? Math.round(v / gridSize) * gridSize : R(v);
 const snapshot = () => JSON.stringify(font);
 
-const stateOf = () => ({ font, ptext, snapOn, gridSize });
+const stateOf = () => ({ font, ptext, snapOn, gridSize, showLower });
 function applyState(s) {
   if (!(s && s.font && Array.isArray(s.font.glyphs) && s.font.glyphs.length)) return false;
-  font = s.font; ptext = s.ptext ?? ptext; snapOn = s.snapOn ?? true; gridSize = s.gridSize || 10; return true;
+  font = s.font; ptext = s.ptext ?? ptext; snapOn = s.snapOn ?? true; gridSize = s.gridSize || 10; showLower = s.showLower ?? true; return true;
 }
 // With serve.mjs the project lives on disk; on static hosting (GitHub Pages) there is no API and the browser keeps it.
 let serverOk = false;
@@ -279,7 +279,8 @@ function renderCanvas() {
     for (let y = wy0; y * k + view.ty <= H; y += gridSize) { const Y = Math.round(y * k + view.ty) + .5; p += `M0 ${Y}H${W}`; }
     s += `<path class="grid" d="${p}"/>`;
   }
-  for (const [name, y] of [['cap', M.cap], ['x-height', M.xh], ['baseline', M.base], ['descender', M.desc]]) {
+  const metricLines = [['cap', M.cap], ['x-height', M.xh], ...(showLower ? [['baseline', M.base], ['descender', M.desc]] : [])];
+  for (const [name, y] of metricLines) {
     const Y = Math.round(y * k + view.ty) + .5;
     s += `<line class="metric${name === 'baseline' ? ' base' : ''}" x1="0" x2="${W}" y1="${Y}" y2="${Y}"/><text class="mlabel" x="8" y="${Y - 4}">${name} ${y}</text>`;
   }
@@ -462,7 +463,7 @@ function renderPreview() {
   const sv = $('#pview');
   sv.setAttribute('viewBox', `-80 ${y0} ${w} ${h}`);
   sv.style.width = `${Math.max(120, w / h * 110)}px`;
-  let s = `<line class="pbase" x1="-80" x2="${w}" y1="${M.base}" y2="${M.base}"/>`;
+  let s = showLower ? `<line class="pbase" x1="-80" x2="${w}" y1="${M.base}" y2="${M.base}"/>` : '';
   for (const it of items) {
     if (it.miss) s += `<rect class="miss" x="${it.x + 20}" y="${M.cap}" width="${font.space - 40}" height="${M.base - M.cap}"><title>No glyph “${esc(it.miss)}”</title></rect>`;
     else s += `<path data-gi="${it.gi}" fill-rule="evenodd" transform="translate(${R(it.x)} 0)" d="${glyphD(it.g)}"><title>${esc(it.g.id)}</title></path>`;
@@ -474,7 +475,7 @@ function render() {
   renderCanvas(); renderList(); renderInspector(); renderPreview();
   $('#tSelect').classList.toggle('on', tool === 'select'); $('#tPen').classList.toggle('on', tool === 'pen');
   $('#bUndo').disabled = !undoS.length; $('#bRedo').disabled = !redoS.length;
-  $('#snap').checked = snapOn; setVal('#grid', gridSize);
+  $('#snap').checked = snapOn; setVal('#grid', gridSize); $('#lowerOn').checked = showLower;
 }
 
 /* ---------- view ---------- */
@@ -1019,6 +1020,8 @@ $('#bZin').onclick = () => { zoomAt(cv.clientWidth / 2, cv.clientHeight / 2, 1.2
 $('#bZout').onclick = () => { zoomAt(cv.clientWidth / 2, cv.clientHeight / 2, .8); render(); };
 $('#snap').onchange = e => { snapOn = e.target.checked; save(); };
 $('#parOn').onchange = e => { parOn = e.target.checked; render(); };
+function setLower(on) { showLower = on; save(); render(); }
+$('#lowerOn').onchange = e => setLower(e.target.checked);
 $('#grid').onchange = e => { const v = parseFloat(e.target.value); if (v > 0) { gridSize = v; save(); render(); } };
 
 const keysDlg = $('#keysdlg');
@@ -1043,6 +1046,7 @@ window.addEventListener('keydown', e => {
   if (k === 'v' || k === 'V') setTool('select');
   else if (k === 'p' || k === 'P') setTool('pen');
   else if (k === 'f' || k === 'F') { fit(); render(); }
+  else if (k === 'g' || k === 'G') setLower(!showLower);
   else if (k === 'h' || k === 'H') showKeys(true);
   else if (k === 'c' || k === 'C') {
     if (active === null && !sel.size) flash('Select a point on a contour (or draw with the pen) to close it.');
@@ -1116,6 +1120,11 @@ $('#bPasteG').onclick = pasteClip;
 document.addEventListener('click', e => { const b = e.target.closest('button'); if (b && e.detail > 0) b.blur(); });
 
 /* ---------- boot ---------- */
+fetch('version.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(v => {
+  if (!v) return;
+  const el = $('#ver'); el.textContent = `${v.build ? `build ${v.build}` : ''}${v.commit ? ` · ${v.commit}` : ''}`.replace(/^ · /, '');
+  el.title = `Commit ${v.commit || '?'}${v.date ? `, ${v.date}` : ''}`;
+}).catch(() => {});
 let fitted = false;
 await load();
 setSaveState(serverOk ? 'saved' : 'saved in browser');

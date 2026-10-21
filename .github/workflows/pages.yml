@@ -24,6 +24,11 @@ jobs:
         with:
           node-version: 20
       - run: npm test
+      - name: Stamp build number and commit
+        run: |
+          BUILD=$(grep -m1 -oE '^## [0-9]+' CHANGELOG.md | cut -c4-)
+          printf '{"build":"%s","commit":"%s","date":"%s"}\n' "$BUILD" "${GITHUB_SHA::7}" "$(date -u +%Y-%m-%d)" > public/version.json
+          cat public/version.json
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

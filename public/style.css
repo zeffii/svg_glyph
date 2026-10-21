@@ -97,6 +97,9 @@ kbd{font-family:inherit;color:var(--dim);margin-left:1ch}
 .sec{padding:0 12px 14px;display:flex;flex-direction:column;gap:3px}
 .row{display:flex;flex-wrap:wrap;gap:3px 2ch;align-items:center}
 .row label{flex:0 0 auto}
+.row.one{flex-wrap:nowrap;gap:1ch}
+.row.one #crad{width:6ch}
+.ver{color:var(--dim);font-variant-numeric:tabular-nums}
 #gid{width:12ch}
 .note{color:var(--muted);min-height:1.45em}
 .note.err{color:var(--magenta)}

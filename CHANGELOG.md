@@ -1,6 +1,12 @@
 # Changelog
 
-Newest first. Each delivery zip is numbered (`glyphpath-NNN.zip`) and matches one entry here.
+Newest first. Each numbered entry is one build; the number shows in the app header next to the commit.
+
+## 005 · 2026-10-21
+
+- The header shows the build number and commit, e.g. `build 005 · f7594fe`. On Pages the deploy writes it; locally `serve.mjs` reads it from git, with `+` when there are uncommitted changes.
+- Radius, Fillet and Chamfer now sit on one line in the Corners section.
+- The new **Base/desc** toggle in the toolbar (or **G**) hides the baseline and descender guides, including the proof strip's baseline. The setting is saved with the project.
 
 ## 004 · 2026-10-21
 

@@ -4,6 +4,7 @@ import http from 'node:http';
 import { readFile, writeFile, rename, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const pub = path.join(root, 'public');
@@ -88,11 +89,23 @@ async function serveStatic(req, res, url) {
   }
 }
 
+// Build stamp shown in the app header: changelog number + current git commit (Pages writes a static version.json instead).
+async function versionInfo() {
+  let build = '', commit = 'local';
+  try { build = (await readFile(path.join(root, 'CHANGELOG.md'), 'utf8')).match(/^## (\d+)/m)?.[1] || ''; } catch {}
+  try {
+    commit = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+    if (execFileSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' }).trim()) commit += '+';
+  } catch {}
+  return { build, commit, date: new Date().toISOString().slice(0, 10) };
+}
+
 export function createServer() {
   return http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
     try {
-      if (url.pathname.startsWith('/api/')) await api(req, res, url);
+      if (url.pathname === '/version.json') send(res, 200, JSON.stringify(await versionInfo()), TYPES['.json']);
+      else if (url.pathname.startsWith('/api/')) await api(req, res, url);
       else await serveStatic(req, res, url);
     } catch (e) {
       console.error(e);
