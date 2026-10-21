@@ -2,6 +2,10 @@
 
 Newest first. Each delivery zip is numbered (`glyphpath-NNN.zip`) and matches one entry here.
 
+## 004 · 2026-10-21
+
+- The GitHub Pages workflow now runs on pushes to `master`, this repo's branch. It was set to `main`, so pushes never deployed.
+
 ## 003 · 2026-10-21
 
 - Collinear arms can be locked and unlinked with a chain icon (green when locked, grey when open).

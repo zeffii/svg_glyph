@@ -29,6 +29,6 @@ Both folders are created on first save and are git-ignored.
 
 ## GitHub Pages
 
-`.github/workflows/pages.yml` publishes `public/` on every push to `main` (tests run first). Turn it on once in the repo: Settings → Pages → Source: **GitHub Actions**.
+`.github/workflows/pages.yml` publishes `public/` on every push to `master` (tests run first). Turn it on once in the repo: Settings → Pages → Source: **GitHub Actions**.
 
 On Pages there is no server, so the project is kept in the browser's storage. Use Export / Import → Download project JSON to back it up, and the Save SVG to exports/ button is hidden.
