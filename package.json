@@ -1,0 +1,14 @@
+{
+  "name": "glyphpath",
+  "version": "0.1.0",
+  "description": "Logo and glyph SVG path editor, served locally with Node.js",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node serve.mjs",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

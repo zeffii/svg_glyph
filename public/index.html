@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Glyphpath</title>
+<link rel="stylesheet" href="style.css">
+<script type="module" src="app.js"></script>
+</head>
+<body>
+<header class="top">
+  <div class="brand">Glyphpath <small>logo &amp; glyph path editor</small></div>
+  <div class="group" role="group" aria-label="Tool">
+    <button id="tSelect" class="tab on" title="Select and edit points">Select<kbd>V</kbd></button>
+    <button id="tPen" class="tab" title="Draw points">Pen<kbd>P</kbd></button>
+  </div>
+  <div class="group">
+    <label><input type="checkbox" id="snap" checked> Snap</label>
+    <label title="When you click or move a line, highlight lines parallel to it (solid) or nearly parallel (dashed)"><input type="checkbox" id="parOn" checked> Parallels</label>
+    <label>Grid <input type="number" id="grid" min="1" max="200" value="10"></label>
+  </div>
+  <div class="group">
+    <button id="bUndo" title="Undo (Ctrl+Z)">Undo</button>
+    <button id="bRedo" title="Redo (Ctrl+Shift+Z)">Redo</button>
+  </div>
+  <div class="group">
+    <button id="bZout" aria-label="Zoom out">−</button>
+    <button id="bFit" title="Fit glyph (F)">Fit<kbd>F</kbd></button>
+    <button id="bZin" aria-label="Zoom in">+</button>
+  </div>
+  <div class="spacer"></div>
+  <span id="savestate" class="note"></span>
+  <button id="bKeys" title="Keyboard shortcuts">Keys<kbd>H</kbd></button>
+  <button id="bIO">Export / Import</button>
+</header>
+
+<main class="work">
+  <aside class="glyphs">
+    <div class="phead"><span class="lbl">Glyph list</span><button id="bAdd">+ Add</button></div>
+    <div id="glist"></div>
+  </aside>
+
+  <section class="stage">
+    <svg id="cv" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="hint"><span id="hint"></span><span id="zoomlbl"></span></div>
+  </section>
+
+  <aside class="insp">
+    <div class="sec">
+      <span class="lbl">Glyph</span>
+      <div class="row">
+        <label>ID <input type="text" id="gid" spellcheck="false"></label>
+        <label>Advance <input type="number" id="gadv" min="0" step="10"></label>
+      </div>
+      <div class="note" id="gidnote"></div>
+      <div class="row">
+        <button id="bDup" title="New glyph that is a copy of this one">Duplicate</button>
+        <button id="bCopyG" title="Copy selected contours, or the whole glyph if nothing is selected (Ctrl+C)">Copy</button>
+        <button id="bPasteG" title="Paste copied contours into this glyph (Ctrl+V)">Paste</button>
+        <button id="bDelG" class="danger">Delete glyph</button>
+      </div>
+    </div>
+
+    <div class="sec">
+      <span class="lbl">Points</span>
+      <div class="note" id="selinfo"></div>
+      <div class="row">
+        <label>X <input type="number" id="nx" step="1"></label>
+        <label>Y <input type="number" id="ny" step="1"></label>
+      </div>
+      <div class="row" role="group" aria-label="Point type">
+        <button id="pSharp" title="Remove handles">Sharp</button>
+        <button id="pSmooth" title="Aligned handles">Smooth</button>
+        <button id="pFree" title="Independent handles">Free</button>
+      </div>
+      <div class="row">
+        <button id="cClose">Close / open</button>
+        <button id="cRev">Reverse</button>
+        <button id="pDel" class="danger">Delete points</button>
+      </div>
+    </div>
+
+    <div class="sec">
+      <span class="lbl">Corners</span>
+      <div class="row">
+        <label>Radius <input type="number" id="crad" min="0" step="5" value="40"></label>
+        <button id="bFillet" title="Round the selected corners with a circular arc">Fillet<kbd>R</kbd></button>
+        <button id="bChamfer" title="Cut the selected corners with a straight bevel">Chamfer<kbd>K</kbd></button>
+      </div>
+      <div class="note" id="cnote">Select sharp corner points between two straight lines.</div>
+    </div>
+
+    <div class="sec">
+      <div class="row" style="justify-content:space-between"><span class="lbl">Path data (d)</span><button id="bCopyD">Copy</button></div>
+      <div class="dwrap"><pre id="dhl" aria-hidden="true"></pre><textarea id="dtext" spellcheck="false" aria-label="Path data for this glyph"></textarea></div>
+      <div class="note" id="dnote">Edit to reshape the glyph. M L H V C S Q T Z, absolute or relative.</div>
+    </div>
+
+    <div class="sec">
+      <span class="lbl">Font metrics (units, em = 1000)</span>
+      <div class="row">
+        <label>Cap <input type="number" id="mCap"></label>
+        <label>x-height <input type="number" id="mXh"></label>
+      </div>
+      <div class="row">
+        <label>Baseline <input type="number" id="mBase"></label>
+        <label>Descender <input type="number" id="mDesc"></label>
+      </div>
+    </div>
+
+  </aside>
+</main>
+
+<footer class="preview">
+  <div class="row">
+    <label>Proof <input type="text" id="ptext" spellcheck="false"></label>
+    <label>Tracking <input type="number" id="ptrack" step="5"></label>
+    <label>Space <input type="number" id="pspace" step="10"></label>
+    <button id="bCopySvg">Copy SVG</button>
+    <span id="pnote">Type glyph IDs; use /name for longer IDs, e.g. /A.alt</span>
+  </div>
+  <div id="pwrap"><svg id="pview" xmlns="http://www.w3.org/2000/svg"></svg></div>
+</footer>
+
+<div class="modal" id="keysdlg" hidden>
+  <div class="dlg keysbox" role="dialog" aria-modal="true" aria-labelledby="kh">
+    <div class="row" style="justify-content:space-between"><h2 id="kh">Keys</h2><button id="kClose">Close<kbd>H</kbd></button></div>
+    <div class="keys">
+        <code>V / P</code><span>Select / pen</span>
+        <code>Esc</code><span>Finish contour, clear selection</span>
+        <code>C</code><span>Close (or open) the current contour</span>
+        <code>Shift-drag line</code><span>Move that segment (both its points)</span>
+        <code>Ctrl+Shift-drag</code><span>Move horizontally or vertically only</span>
+        <code>R / K</code><span>Fillet / chamfer selected corners: move to size, click to apply</span>
+        <code>Drag ⊕ / arc</code><span>Fillet: drag its centre or its arc to change the radius</span>
+        <code>L, then L</code><span>Hover a line, L marks it; hover another, L makes it parallel</span>
+        <code>Del</code><span>Delete selected points</span>
+        <code>Arrows</code><span>Nudge 1 (Shift: 10)</span>
+        <code>[ ]</code><span>Previous / next glyph</span>
+        <code>Ctrl+A</code><span>Select all points</span>
+        <code>Ctrl+C X V</code><span>Copy / cut / paste contours (nothing selected: whole glyph)</span>
+        <code>Space-drag</code><span>Pan (or middle mouse)</span>
+        <code>Ctrl+wheel</code><span>Zoom; wheel scrolls</span>
+        <code>Alt-drag</code><span>Break a smooth handle</span>
+        <code>+ / −</code><span>Arm / disarm the hovered control point; armed points move along with the one you drag (− with nothing hovered disarms all)</span>
+        <code>Dbl-click</code><span>Point: sharp/smooth. Segment: add point</span>
+        <code>B / right-click</code><span>Segment under cursor: line ↔ curve (no hover: segments between selected points)</span>
+      </div>
+  </div>
+</div>
+<div class="modal" id="modal" hidden>
+  <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="ioh">
+    <div class="row" style="justify-content:space-between"><h2 id="ioh">Export / Import</h2><button id="ioClose">Close</button></div>
+    <div class="row">
+      <button id="ioJson">Show project JSON</button>
+      <button id="ioSvgDefs">Show SVG (defs + use)</button>
+      <button id="ioSvgFlat">Show SVG (flat)</button>
+      <button id="ioCopy">Copy text</button>
+    </div>
+    <div class="row">
+      <button id="ioDlJson">Download project JSON</button>
+      <button id="ioDlSvg">Download SVG</button>
+      <button id="ioSaveSvg" title="Writes exports/&lt;proof text&gt;.svg in the project folder">Save SVG to exports/</button>
+    </div>
+    <textarea id="iotext" spellcheck="false" aria-label="Export or import text"></textarea>
+    <div class="row">
+      <button id="ioLoad">Load from text</button>
+      <label>or open a file <input type="file" id="iofile" accept=".json,.svg,application/json,image/svg+xml"></label>
+    </div>
+    <div class="note" id="ionote">Loading project JSON replaces everything. Loading SVG adds each &lt;path&gt; as a glyph named by its id, replacing glyphs with the same id.</div>
+  </div>
+</div>
+</body>
+</html>
