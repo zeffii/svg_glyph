@@ -1060,6 +1060,11 @@ window.addEventListener('keydown', e => {
     else $('#cClose').onclick();
   }
   else if (k === 'l' || k === 'L') lineKey(hoverS && hit(hoverS.sx, hoverS.sy));
+  else if (k === 'i' || k === 'I') {
+    const h = hoverS && hit(hoverS.sx, hoverS.sy);
+    if (!h || h.type !== 'seg') { flash('Hover a segment and press I to insert a point there.'); return; }
+    edit(() => { const ni = insertAt(h.ci, h.ni, h.t); sel = new Set([key(h.ci, ni)]); focusSeg = null; focusFil = null; });
+  }
   else if (k === 'r' || k === 'R') startCorner('fillet');
   else if (k === 'k' || k === 'K') startCorner('chamfer');
   else if (k === 'b' || k === 'B') {

@@ -1,6 +1,6 @@
 {
   "name": "glyphpath",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Logo and glyph SVG path editor, served locally with Node.js",
   "private": true,
   "type": "module",
