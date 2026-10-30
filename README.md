@@ -1,6 +1,6 @@
 # Glyphpath
 
-A logo and glyph editor for SVG paths. Each glyph is a named path (`A`, `N`, `A.alt`…), and the proof line sets glyphs side by side like a font.
+A logo and glyph editor for SVG paths. See [FEATURES.md](FEATURES.md) for everything it does. Each glyph is a named path (`A`, `N`, `A.alt`…), and the proof line sets glyphs side by side like a font.
 
 ## Run
 

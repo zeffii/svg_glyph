@@ -2,6 +2,10 @@
 
 Newest first. Each numbered entry is one build; the number shows in the app header next to the commit.
 
+## 008 · 2026-10-30
+
+- New `FEATURES.md`: a compact guide to everything Glyphpath does, with keys. It's linked from the README.
+
 ## 007 · 2026-10-22
 
 - **I** inserts a point on the segment under the cursor, at the spot you're hovering. It works in both tools and keeps the curve's shape. The new point is selected.
