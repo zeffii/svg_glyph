@@ -3,7 +3,7 @@
   --bg:#1E1E1E; --line:#3A3A3A; --fg:#D4D4D4; --muted:#8E8E8E; --dim:#666;
   --field:#2D2D2D; --bar:#2A2A2A; --field-hi:#3E3E3E; --rowsel:#3B6AA0;
   --board:#151515; --gridline:#202020; --guide:#A88A2E; --cyan:#4FB6E0; --magenta:#E2588F;
-  --shape-fill:rgba(212,212,212,.08); --cmd:#7DD3FC; --par:#5CCB7E; --eq:#F28C64; --red:#F0524F;
+  --shape-fill:rgba(212,212,212,.08); --cmd:#7DD3FC; --par:#5CCB7E; --eq:#F28C64; --gd:#B19CF5; --red:#F0524F;
   --mono:Consolas,"Cascadia Mono","JetBrains Mono",ui-monospace,Menlo,monospace;
   color-scheme:dark;
 }
@@ -123,6 +123,9 @@ kbd{font-family:inherit;color:var(--dim);margin-left:1ch}
 #cv .weldring{fill:none;stroke:var(--cmd);stroke-width:1.5;stroke-dasharray:3 2}
 #cv .weldring.ask{stroke:var(--par);stroke-dasharray:none;stroke-width:2}
 #cv .weldask .lmrow{fill:var(--field)}
+#cv .gline{stroke:var(--gd);stroke-width:1;stroke-dasharray:8 5;opacity:.75}
+#cv .gline.hot{stroke-width:2;opacity:1;stroke-dasharray:none}
+#cv .glabel{fill:var(--gd);font:12px var(--mono)}
 #cv .marq{fill:var(--cyan);fill-opacity:.08;stroke:var(--cyan);stroke-width:1;stroke-dasharray:3 3}
 
 .insp{border-left:1px solid var(--line);overflow:auto;min-height:0}

@@ -458,6 +458,7 @@ function renderCanvas() {
     s += `<text class="slabel" x="${advX + 6}" y="${M.desc * k + view.ty - 6}">advance ${g.adv}</text>`;
   }
   s += renderUnderlay(g);
+  s += renderGuides();
   s += `<g transform="translate(${view.tx} ${view.ty}) scale(${k})"><path class="shape" d="${glyphD(g)}"/>`;
   if (tool === 'pen' && active !== null && hover && !drag && g.contours[active]) {
     const ns = g.contours[active].nodes, l = ns[ns.length - 1];
@@ -835,7 +836,7 @@ function startMove(h, e, w, before, keepSel) {
     else if (!sel.has(k)) sel = new Set([k]);
   }
   const orig = new Map(); for (const kk of sel) { const n = nodeOf(kk); if (n) orig.set(kk, clone(n)); }
-  drag = { kind: 'move', w0: w, orig, grab: clone(nodeOf(k)), before }; render();
+  drag = { kind: 'move', w0: w, orig, grab: clone(nodeOf(k)), grabKey: k, before }; render();
 }
 cv.addEventListener('pointerdown', e => {
   const { sx, sy } = local(e), w = toWorld(sx, sy);
@@ -906,7 +907,11 @@ cv.addEventListener('pointerdown', e => {
     }
     if (h && h.type === 'seg' && active === null) { const ni = insertAt(h.ci, h.ni, h.t); sel = new Set([key(h.ci, ni)]); commit(before); render(); return; }
     if (active === null || !g.contours[active]) { g.contours.push({ closed: false, nodes: [] }); active = g.contours.length - 1; }
-    const c = g.contours[active]; c.nodes.push(N(sn(w.x), sn(w.y)));
+    const c = g.contours[active];
+    let pp = { x: sn(w.x), y: sn(w.y) };
+    if (!e.altKey && c.nodes.length) { const r = guideSnap(pp, [c.nodes[c.nodes.length - 1]]); pp = r.p; }
+    else if (!e.altKey) pp = guideSnap(pp).p;
+    c.nodes.push(N(pp.x, pp.y));
     const ni = c.nodes.length - 1; sel = new Set([key(active, ni)]);
     drag = { kind: 'pen', ci: active, ni, before }; render(); return;
   }
@@ -970,6 +975,13 @@ window.addEventListener('pointermove', e => {
       const ref = drag.circ || drag.grab;
       dx = axis === 'y' ? 0 : sn(ref.x + dx) - ref.x;
       dy = axis === 'x' ? 0 : sn(ref.y + dy) - ref.y;
+      guideHit = null;
+      if (!e.altKey && !axis && drag.grabKey) {
+        const [gci, gni] = unkey(drag.grabKey);
+        const anchors = drag.orig.size === 1 ? straightNeighbours(gci, gni) : [];
+        const r = guideSnap({ x: ref.x + dx, y: ref.y + dy }, anchors);
+        if (r.hit) { dx = r.p.x - ref.x; dy = r.p.y - ref.y; guideHit = r.hit; }
+      }
       for (const [kk, o] of drag.orig) {
         const n = nodeOf(kk); n.x = o.x + dx; n.y = o.y + dy;
         n.i = o.i && { x: o.i.x + dx, y: o.i.y + dy }; n.o = o.o && { x: o.o.x + dx, y: o.o.y + dy };
@@ -978,7 +990,9 @@ window.addEventListener('pointermove', e => {
       break;
     }
     case 'handle': {
-      const p = { x: sn(w.x), y: sn(w.y) };
+      let p = { x: sn(w.x), y: sn(w.y) };
+      guideHit = null;
+      if (!e.altKey) { const r = guideSnap(p, [nodeOf(drag.k)]); if (r.hit) { p = r.p; guideHit = r.hit; } }
       placeHandle(nodeOf(drag.k), drag.h, p, e.altKey);
       const dx = p.x - drag.h0.x, dy = p.y - drag.h0.y;
       for (const a of drag.arm) { const n = nodeOf(a.k); if (n) placeHandle(n, a.h, { x: a.o.x + dx, y: a.o.y + dy }, e.altKey); }
@@ -1061,6 +1075,7 @@ window.addEventListener('pointerup', () => {
     else { sel = new Set(c.nodes.map((_, ni) => key(drag.ci, ni))); focusCirc = drag.ci; flash(`${drag.rx === drag.ry ? `Circle r ${drag.rx}` : `Ellipse ${drag.rx} × ${drag.ry}`} at ${R(drag.c.x)}, ${R(drag.c.y)}.`); }
   }
   if (!weldAsk) clearTimeout(weldTimer);
+  guideHit = null;
   if (drag.before !== undefined) commit(drag.before);
   drag = null; render();
 });
@@ -1205,6 +1220,91 @@ function renderWeld(g) {
       + `<rect class="lmrow" x="${b.x + 104}" y="${b.y + 2}" width="50" height="${b.h - 4}"/><text class="lml eq" x="${b.x + 110}" y="${b.y + 16}">N</text><text class="lmt" x="${b.x + 122}" y="${b.y + 16}">no</text></g>`;
   }
   return s;
+}
+/* ---------- guides: infinite marker lines ----------
+   T over a handle (or a straight segment) adds a guide through that point at that angle; Shift+T over a guide deletes it.
+   Guides belong to the glyph or drawing ({ x, y, a } with a in radians) and are never exported.
+   While dragging, a point snaps onto a guide within GUIDE_PX screen pixels; a straight line attached to it
+   snaps parallel or perpendicular to a guide within GUIDE_DEG. Hold Alt to drag without guide snapping. */
+const GUIDE_PX = 8, GUIDE_DEG = 2 * Math.PI / 180;
+let guideHit = null;   // { gi, kind: 'on' | 'par' | 'perp' } while a drag is snapped, for the highlight
+const guides = () => G().guides || [];
+function addGuide(x, y, a) {
+  edit(() => { const g = G(); (g.guides ||= []).push({ x: R(x), y: R(y), a: Math.round(a * 1e6) / 1e6 }); });
+  flash('Guide added. Points snap onto it, lines snap parallel or perpendicular. Shift+T over it deletes it.');
+}
+function guideKey() {
+  const h = hoverS && hit(hoverS.sx, hoverS.sy);
+  if (h && h.type === 'handle') {
+    const n = G().contours[h.ci].nodes[h.ni], p = n[h.h];
+    if (Math.hypot(p.x - n.x, p.y - n.y) < 1e-6) { flash('That handle sits on its point; drag it out first.'); return; }
+    addGuide(n.x, n.y, Math.atan2(p.y - n.y, p.x - n.x)); return;
+  }
+  if (h && h.type === 'seg') {
+    const c = G().contours[h.ci], a = c.nodes[h.ni], b = c.nodes[(h.ni + 1) % c.nodes.length];
+    if (!a.o && !b.i) { addGuide(a.x, a.y, Math.atan2(b.y - a.y, b.x - a.x)); return; }
+  }
+  flash('Hover a control handle (or a straight segment) and press T to make a guide from it.');
+}
+function guideNear(sx, sy) {
+  let best = -1, bd = GUIDE_PX;
+  guides().forEach((gd, gi) => {
+    const p = toScreen(gd), d = Math.abs((sx - p.x) * Math.sin(gd.a) - (sy - p.y) * Math.cos(gd.a));
+    if (d <= bd) { bd = d; best = gi; }
+  });
+  return best;
+}
+function deleteGuideKey() {
+  const gi = hoverS ? guideNear(hoverS.sx, hoverS.sy) : -1;
+  if (gi < 0) { flash('Hover a guide and press Shift+T to delete it.'); return; }
+  edit(() => { G().guides.splice(gi, 1); }); flash('Guide deleted.');
+}
+// Snap a dragged point p: onto a guide first, else make one of its straight lines (to `anchors`) parallel or perpendicular.
+function guideSnap(p, anchors = []) {
+  const gs = guides(); if (!gs.length) return { p, hit: null };
+  let best = null;
+  gs.forEach((gd, gi) => {
+    const ux = Math.cos(gd.a), uy = Math.sin(gd.a), t = (p.x - gd.x) * ux + (p.y - gd.y) * uy;
+    const q = { x: gd.x + ux * t, y: gd.y + uy * t }, d = Math.hypot(p.x - q.x, p.y - q.y) * view.k;
+    if (d <= GUIDE_PX && (!best || d < best.d)) best = { d, p: q, hit: { gi, kind: 'on' } };
+  });
+  if (best) return best;
+  let bestA = null;
+  for (const m of anchors) {
+    const ang = Math.atan2(p.y - m.y, p.x - m.x), len = Math.hypot(p.x - m.x, p.y - m.y);
+    if (len < 1e-6) continue;
+    gs.forEach((gd, gi) => {
+      for (const [kind, ta] of [['par', gd.a], ['perp', gd.a + Math.PI / 2]]) {
+        const diff = lineAngDiff(ang, ta);
+        if (diff < GUIDE_DEG && (!bestA || diff < bestA.diff)) {
+          const ux = Math.cos(ta), uy = Math.sin(ta), t = (p.x - m.x) * ux + (p.y - m.y) * uy;
+          bestA = { diff, p: { x: m.x + ux * t, y: m.y + uy * t }, hit: { gi, kind } };
+        }
+      }
+    });
+  }
+  return bestA || { p, hit: null };
+}
+// The neighbours that a point's straight segments run to (the lines that can snap parallel / perpendicular).
+function straightNeighbours(ci, ni) {
+  const c = G().contours[ci], L = c.nodes.length, n = c.nodes[ni], out = [];
+  const prev = ni > 0 || c.closed ? c.nodes[(ni - 1 + L) % L] : null, next = ni < L - 1 || c.closed ? c.nodes[(ni + 1) % L] : null;
+  if (prev && prev !== n && !prev.o && !n.i) out.push(prev);
+  if (next && next !== n && !n.o && !next.i) out.push(next);
+  return out;
+}
+function renderGuides() {
+  const W = cv.clientWidth, H = cv.clientHeight, far = (W + H) * 4;
+  return guides().map((gd, gi) => {
+    const p = toScreen(gd), ux = Math.cos(gd.a), uy = Math.sin(gd.a);
+    const hot = guideHit && guideHit.gi === gi;
+    let s = `<line class="gline${hot ? ' hot' : ''}" x1="${R(p.x - ux * far)}" y1="${R(p.y - uy * far)}" x2="${R(p.x + ux * far)}" y2="${R(p.y + uy * far)}"/>`;
+    if (hot) {
+      const lbl = guideHit.kind === 'on' ? 'on guide' : guideHit.kind === 'par' ? '∥ parallel' : '⊥ perpendicular';
+      s += `<text class="glabel" x="${R((hover ? toScreen(hover).x : p.x) + 14)}" y="${R((hover ? toScreen(hover).y : p.y) + 22)}">${lbl}</text>`;
+    }
+    return s;
+  }).join('');
 }
 function moveNodeTo(n, x, y) {
   const dx = x - n.x, dy = y - n.y; n.x = x; n.y = y;
@@ -1721,6 +1821,7 @@ window.addEventListener('keydown', e => {
   else if (k === 'g' || k === 'G') setLower(!showLower);
   else if (k === 'n' || k === 'N') setNodes(!showNodes);
   else if (k === 'j' || k === 'J') joinKey(e.shiftKey);
+  else if (k === 't' || k === 'T') { if (e.shiftKey) deleteGuideKey(); else guideKey(); }
   else if (k === 'a' || k === 'A') {
     if (!hoverH) { flash('Hover a control point and press A to line it up with the point’s other handle.'); return; }
     const [ci, ni, h] = hoverH.split(':'), err = alignHandle(+ci, +ni, h);

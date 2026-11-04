@@ -85,6 +85,10 @@ Every glyph and drawing can have one image to trace over.
 - **Chain icon:** click it to lock collinear arms, on a point (its two arms) or across a segment (the facing arms stay on the line through its points). Click again to unlink. Hovering a point's chain opens a small menu: **(S) Smooth**, which links the handles collinear, and **(E) Equidistant**. The current choice is highlighted.
 - **Arming:** hover a control point and press **+** to arm it. Armed points move along with the one you drag. **−** disarms.
 - **N**, or the **Nodes** checkbox, hides points, handles, chain links, and the fillet and circle markers, so you see just the shapes. Hidden points can't be grabbed, but clicking an outline still selects and moves the contour.
+- **Guides:** hover a control handle (or a straight segment) and press **T** to turn it into an infinite marker line through its point, in lavender. **Shift+T** over a guide deletes it. Guides are saved with the glyph or drawing and never exported.
+  - **Snap onto:** a dragged or pen-placed point snaps onto a guide within 8 screen pixels.
+  - **Snap parallel / perpendicular:** a straight line attached to the dragged point snaps parallel or perpendicular to a guide within 2°, and so does a handle being dragged.
+  - The snapped guide lights up with a label (*on guide*, *∥ parallel*, *⊥ perpendicular*). Hold **Alt** to drag without snapping.
 - **Metrics:** cap height, x-height, baseline and descender. **G** hides the baseline and descender guides.
 
 ## Panels

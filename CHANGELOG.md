@@ -2,6 +2,13 @@
 
 Newest first. Each numbered entry is one build; the number shows in the app header next to the commit.
 
+## 026 · 2026-11-04
+
+- **Guides (marker lines).** Hover a control handle (or a straight segment) and press **T** for an infinite lavender guide through that point at that angle. **Shift+T** over a guide deletes it. Guides are saved with the glyph or drawing, undoable, and never exported.
+  - Dragged and pen-placed points snap **onto** a guide within 8 screen pixels.
+  - A straight line attached to the dragged point snaps **parallel** or **perpendicular** to a guide within 2°, and so does a dragged handle.
+  - The snapped guide lights up with a label. Hold **Alt** to drag without snapping.
+
 ## 025 · 2026-11-04
 
 - **Join / weld end points.**
