@@ -1,6 +1,6 @@
 # Glyphpath features
 
-Glyphpath is a logo and glyph editor for SVG paths. Each glyph is a named path, and the proof line sets glyphs side by side like a font.
+Glyphpath is a small SVG drawing tool with two modes. **Glyphs** edits named paths with font metrics and a proof line that sets them like a font. **Logo** edits free drawings on an artboard. Both modes use the same drawing tools, and both can trace over an image underlay.
 
 Live version: https://zeffii.github.io/svg_glyph/ · Press **H** in the app for the key list.
 
@@ -11,6 +11,32 @@ Live version: https://zeffii.github.io/svg_glyph/ · Press **H** in the app for 
 - The **glyph list** on the left shows a preview, the ID, the advance, and the contour and point counts. **[ ]** steps through the glyphs.
 - **Dup** copies the current glyph into a new one named `ID.alt`. **Del** deletes the glyph; click it twice to confirm.
 - **Copy / Paste**, or **Ctrl+C / X / V**, copies whole contours: the ones holding selected points, or the whole glyph when nothing is selected. Paste keeps the position, so a stem copied from N lands in the same spot in another glyph. Path data or SVG from the system clipboard can also be pasted in.
+
+## Modes
+
+- **M**, or the Glyphs / Logo tabs, switches mode. Each mode remembers which item you had open.
+- **Logo mode** works on *drawings*: each has an ID and an artboard **Size** (W × H), shown as a dashed frame. The list on the left becomes the drawing list (+ Add, Dup, Del), and the metrics and proof line are hidden.
+- **Copy SVG**, Export → Download SVG and Save SVG to exports/ give you the current drawing as an SVG sized to its artboard.
+- Importing an SVG in logo mode adds it as a new drawing. All its paths are merged, and its viewBox becomes the artboard.
+- Contours copy and paste between modes, so a letter can be pasted into a logo.
+
+## Underlay
+
+Every glyph and drawing can have one image to trace over.
+
+- **Add an image:** use **Import…** in the Underlay panel, drop an image on the board, or paste one (Ctrl+V). It's fitted into the em box or the artboard at 50% opacity.
+- **Place it:** press **U**, or click **Place**. The image gets gold handles, and path editing pauses until you press U or Esc.
+  - Drag the image to move it. With Snap on, the basepoint lands on grid points.
+  - Drag **⊕**, or double-click the image, to set the **basepoint**. This picks a spot in the picture and leaves the image where it is.
+  - Drag **○** to rotate around the basepoint. Shift snaps to 15°.
+  - Drag **□** to scale from the basepoint.
+  - The arrow keys nudge the image (Shift for 10).
+- **Panel settings:**
+  - Opacity, visible and invert. Invert helps dark artwork show up on the dark board.
+  - Exact basepoint position, rotation and scale.
+  - **Fit** resets the image to upright and fitted.
+  - **Remove** takes it off (Ctrl+Z undoes).
+- **Storage:** images are stored in this browser (IndexedDB), not in the project JSON. Placement settings travel with the project, but the image file itself doesn't. On another browser you'll see an outline asking you to import it again.
 
 ## Drawing
 

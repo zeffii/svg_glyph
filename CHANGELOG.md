@@ -2,6 +2,23 @@
 
 Newest first. Each numbered entry is one build; the number shows in the app header next to the commit.
 
+## 009 · 2026-11-04
+
+Glyphpath becomes a small SVG drawing tool.
+
+- **Logo mode** (M, or the Glyphs / Logo tabs):
+  - Free drawings on an artboard with their own ID and size, using the same drawing tools. The list becomes the drawing list, and metrics and proof are hidden.
+  - Copy SVG, Download SVG and Save SVG export the current drawing at artboard size.
+  - Importing an SVG adds it as a new drawing (paths merged, viewBox as the artboard).
+- **Image underlay** on every glyph and drawing:
+  - Add one by importing, dropping or pasting.
+  - Place it with U: drag to move, ⊕ to set the basepoint (or double-click), ○ to rotate and □ to scale around the basepoint. Both handles sit on short arms from the basepoint, so they stay on screen. Shift snaps rotation to 15°, and arrow keys nudge.
+  - Panel settings: opacity, visible, invert, exact basepoint / rotation / scale, Fit and Remove.
+- Images are kept in the browser (IndexedDB) so the project JSON stays small; placement is saved with the project.
+- New modules: `public/underlay.js` (placement maths, with 6 tests) and `public/images.js` (browser image store).
+- Panel text can no longer be selected by accident when clicking fast. The header subtitle was dropped and the toolbar spacing tightened to keep it on one line.
+- `FEATURES.md` covers both modes and the underlay.
+
 ## 008 · 2026-10-30
 
 - New `FEATURES.md`: a compact guide to everything Glyphpath does, with keys. It's linked from the README.

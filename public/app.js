@@ -1,4 +1,6 @@
 import { R, P, N, contourD, glyphD, parseD, isAligned } from './path.js';
+import { ulToWorld, ulToImage, ulSetBase, ulTransform, ulCorners, ulHit, ulFit, newUnderlay } from './underlay.js';
+import { putImage, imageURL, imageSize } from './images.js';
 
 const $ = s => document.querySelector(s);
 const SKEY = 'glyphpath.v1';
@@ -26,22 +28,31 @@ let view = { k: .5, tx: 0, ty: 0 }, drag = null, hover = null, hoverS = null, sp
 let showLower = true, refSeg = null, parOn = true, flashMsg = '', flashT = 0, hoverSeg = null;
 let cornerR = 40, lastCorner = null, cornerMode = null, hoverF = null, focusSeg = null, focusFil = null;
 let hoverH = null, armed = new Set(), hoverLink = null;
+// Mode: 'glyph' edits font.glyphs (with metrics and the proof line); 'logo' edits font.drawings (free drawings on an artboard).
+let mode = 'glyph', curOther = 0, ulEdit = false, hoverUl = null;
 const PAR_EXACT = .3 * Math.PI / 180, PAR_NEAR = 3 * Math.PI / 180;
 const lineAngDiff = (a, b) => { let d = ((a - b) % Math.PI + Math.PI) % Math.PI; return Math.min(d, Math.PI - d); };
 function flash(m) { flashMsg = m; clearTimeout(flashT); flashT = setTimeout(() => { flashMsg = ''; requestRender(); }, 3000); requestRender(); }
 let snapOn = true, gridSize = 10, ptext = 'NOVA';
 const undoS = [], redoS = [];
-const G = () => font.glyphs[cur];
+const items = () => mode === 'logo' ? font.drawings : font.glyphs;
+const G = () => items()[cur];
+const noun = () => mode === 'logo' ? 'drawing' : 'glyph';
+function ensureDrawings(f) {
+  if (!Array.isArray(f.drawings) || !f.drawings.length) f.drawings = [{ id: 'logo', w: 1200, h: 600, contours: [] }];
+}
+// The area an underlay is fitted into: the em box between cap and baseline, or the artboard.
+const frameOf = g => mode === 'logo' ? { x: 0, y: 0, w: g.w, h: g.h } : { x: 0, y: font.metrics.cap, w: g.adv, h: font.metrics.base - font.metrics.cap };
 const key = (ci, ni) => `${ci}:${ni}`;
 const unkey = k => k.split(':').map(Number);
 const nodeOf = k => { const [ci, ni] = unkey(k); return G().contours[ci]?.nodes[ni]; };
 const sn = v => snapOn ? Math.round(v / gridSize) * gridSize : R(v);
 const snapshot = () => JSON.stringify(font);
 
-const stateOf = () => ({ font, ptext, snapOn, gridSize, showLower });
+const stateOf = () => ({ font, ptext, snapOn, gridSize, showLower, mode });
 function applyState(s) {
   if (!(s && s.font && Array.isArray(s.font.glyphs) && s.font.glyphs.length)) return false;
-  font = s.font; ptext = s.ptext ?? ptext; snapOn = s.snapOn ?? true; gridSize = s.gridSize || 10; showLower = s.showLower ?? true; return true;
+  font = s.font; ptext = s.ptext ?? ptext; snapOn = s.snapOn ?? true; gridSize = s.gridSize || 10; showLower = s.showLower ?? true; mode = s.mode === 'logo' ? 'logo' : 'glyph'; ensureDrawings(font); return true;
 }
 // With serve.mjs the project lives on disk; on static hosting (GitHub Pages) there is no API and the browser keeps it.
 let serverOk = false;
@@ -54,7 +65,7 @@ async function load() {
     try { const r = await fetch('api/project'); if (r.ok && applyState(await r.json())) return; } catch (e) {}
   }
   try { if (applyState(JSON.parse(localStorage.getItem(SKEY) || 'null'))) return; } catch (e) {}
-  font = sampleFont();
+  font = sampleFont(); ensureDrawings(font);
 }
 let saveT = 0;
 function save() {
@@ -78,7 +89,7 @@ function commit(before) {
 }
 function undo() { if (!undoS.length) return; redoS.push(snapshot()); font = JSON.parse(undoS.pop()); afterHistory(); }
 function redo() { if (!redoS.length) return; undoS.push(snapshot()); font = JSON.parse(redoS.pop()); afterHistory(); }
-function afterHistory() { cur = Math.min(cur, font.glyphs.length - 1); sel.clear(); active = null; refSeg = null; hoverSeg = null; focusSeg = null; focusFil = null; armed.clear(); save(); render(); }
+function afterHistory() { cur = Math.min(cur, items().length - 1); sel.clear(); active = null; refSeg = null; hoverSeg = null; focusSeg = null; focusFil = null; armed.clear(); save(); render(); }
 function edit(fn) { const b = snapshot(); fn(); enforceLocks(); commit(b); render(); }
 
 /* ---------- geometry ---------- */
@@ -259,7 +270,7 @@ function hit(sx, sy) {
     }
     best.t = bt; return best;
   }
-  if (tool === 'select' && Math.abs(sx - toScreen({ x: g.adv, y: 0 }).x) < 5) return { type: 'adv' };
+  if (tool === 'select' && mode === 'glyph' && Math.abs(sx - toScreen({ x: g.adv, y: 0 }).x) < 5) return { type: 'adv' };
   return null;
 }
 
@@ -279,17 +290,24 @@ function renderCanvas() {
     for (let y = wy0; y * k + view.ty <= H; y += gridSize) { const Y = Math.round(y * k + view.ty) + .5; p += `M0 ${Y}H${W}`; }
     s += `<path class="grid" d="${p}"/>`;
   }
-  const metricLines = [['cap', M.cap], ['x-height', M.xh], ...(showLower ? [['baseline', M.base], ['descender', M.desc]] : [])];
-  for (const [name, y] of metricLines) {
-    const Y = Math.round(y * k + view.ty) + .5;
-    s += `<line class="metric${name === 'baseline' ? ' base' : ''}" x1="0" x2="${W}" y1="${Y}" y2="${Y}"/><text class="mlabel" x="8" y="${Y - 4}">${name} ${y}</text>`;
+  if (mode === 'logo') {
+    const a = toScreen({ x: 0, y: 0 }), b = toScreen({ x: g.w, y: g.h });
+    s += `<rect class="board" x="${R(a.x) + .5}" y="${R(a.y) + .5}" width="${R(b.x - a.x)}" height="${R(b.y - a.y)}"/>`;
+    s += `<text class="slabel" x="${R(a.x)}" y="${R(a.y) - 6}">${esc(g.id)} · ${g.w} × ${g.h}</text>`;
+  } else {
+    const metricLines = [['cap', M.cap], ['x-height', M.xh], ...(showLower ? [['baseline', M.base], ['descender', M.desc]] : [])];
+    for (const [name, y] of metricLines) {
+      const Y = Math.round(y * k + view.ty) + .5;
+      s += `<line class="metric${name === 'baseline' ? ' base' : ''}" x1="0" x2="${W}" y1="${Y}" y2="${Y}"/><text class="mlabel" x="8" y="${Y - 4}">${name} ${y}</text>`;
+    }
+    for (const [x, cls] of [[0, 'side'], [g.adv, 'side adv']]) {
+      const X = Math.round(x * k + view.tx) + .5;
+      s += `<line class="${cls}" x1="${X}" x2="${X}" y1="0" y2="${H}"/>`;
+    }
+    const advX = g.adv * k + view.tx;
+    s += `<text class="slabel" x="${advX + 6}" y="${M.desc * k + view.ty - 6}">advance ${g.adv}</text>`;
   }
-  for (const [x, cls] of [[0, 'side'], [g.adv, 'side adv']]) {
-    const X = Math.round(x * k + view.tx) + .5;
-    s += `<line class="${cls}" x1="${X}" x2="${X}" y1="0" y2="${H}"/>`;
-  }
-  const advX = g.adv * k + view.tx;
-  s += `<text class="slabel" x="${advX + 6}" y="${M.desc * k + view.ty - 6}">advance ${g.adv}</text>`;
+  s += renderUnderlay(g);
   s += `<g transform="translate(${view.tx} ${view.ty}) scale(${k})"><path class="shape" d="${glyphD(g)}"/>`;
   if (tool === 'pen' && active !== null && hover && !drag && g.contours[active]) {
     const ns = g.contours[active].nodes, l = ns[ns.length - 1];
@@ -397,9 +415,11 @@ function renderCanvas() {
     const a = toScreen({ x: drag.x0, y: drag.y0 }), b = toScreen({ x: drag.x1, y: drag.y1 });
     s += `<rect class="marq" x="${Math.min(a.x, b.x)}" y="${Math.min(a.y, b.y)}" width="${Math.abs(b.x - a.x)}" height="${Math.abs(b.y - a.y)}"/>`;
   }
-  cv.innerHTML = s;
+  if (ulEdit && g.ul) s += underlayHandles(g.ul);
+  $('#ovl').innerHTML = s;
   $('#zoomlbl').textContent = `${Math.round(k * 100)}%`;
   $('#hint').innerHTML = flashMsg ? `<b>${esc(flashMsg)}</b>`
+    : ulEdit ? '<b>Underlay</b> · drag the image to move it, drag ⊕ to move the basepoint (or double-click the image), drag ○ to rotate and □ to scale around the basepoint; Shift snaps rotation to 15°, U or Esc to finish'
     : cornerMode ? `<b>${cornerMode.type === 'fillet' ? 'Fillet' : 'Chamfer'}</b> · move away from the corner to set the ${cornerMode.type === 'fillet' ? 'radius' : 'cut'}, click or Enter to apply, Esc or right-click to cancel`
     : refSeg ? '<b>Reference line set</b> · hover another line and press L to make it parallel, Esc to cancel'
     : tool === 'pen'
@@ -407,19 +427,83 @@ function renderCanvas() {
     : '<b>Select</b> · drag points or handles, Shift-drag a line to move it, B or right-click a segment for line ↔ curve';
 }
 
+/* ---------- underlay ---------- */
+// The image itself is a persistent <image> element (re-creating it every frame would flicker); handles go in the overlay.
+function renderUnderlay(g) {
+  const im = $('#ulimg'), ul = g.ul;
+  const url = ul && ul.vis !== false ? imageURL(ul.img, requestRender) : null;
+  if (url) {
+    if (im.getAttribute('href') !== url) im.setAttribute('href', url);
+    im.setAttribute('width', ul.iw); im.setAttribute('height', ul.ih);
+    im.setAttribute('transform', `translate(${view.tx} ${view.ty}) scale(${view.k}) ${ulTransform(ul)}`);
+    im.style.opacity = ul.op; im.style.filter = ul.inv ? 'invert(1)' : '';
+    im.style.display = '';
+  } else im.style.display = 'none';
+  if (ul && ul.vis !== false && url === null) {
+    const c = ulCorners(ul).map(toScreen), m = toScreen({ x: ul.x, y: ul.y });
+    return `<path class="ulmiss" d="M${c.map(p => `${R(p.x)} ${R(p.y)}`).join('L')}Z"/><text class="ullabel" x="${R(m.x)}" y="${R(m.y)}" text-anchor="middle">${esc(ul.name)} isn’t stored in this browser. Import it again.</text>`;
+  }
+  return '';
+}
+// Rotate (○) and scale (□) handles sit on short arms from the basepoint, so they stay on screen however big the image is.
+const ROT_ARM = 70, SCALE_ARM = 90;
+function ulHandlePos(ul) {
+  const B = toScreen({ x: ul.x, y: ul.y }), a = ul.rot * Math.PI / 180, b = a + Math.PI / 2;
+  return { B, Rh: { x: B.x + Math.cos(a) * ROT_ARM, y: B.y + Math.sin(a) * ROT_ARM }, Sh: { x: B.x + Math.cos(b) * SCALE_ARM, y: B.y + Math.sin(b) * SCALE_ARM } };
+}
+function underlayHandles(ul) {
+  const c = ulCorners(ul).map(toScreen), { B, Rh, Sh } = ulHandlePos(ul), hot = t => hoverUl === t || (drag && drag.kind === t) ? ' hot' : '';
+  let s = `<path class="ulbox" d="M${c.map(p => `${R(p.x)} ${R(p.y)}`).join('L')}Z"/>`;
+  s += `<line class="ularm" x1="${R(B.x)}" y1="${R(B.y)}" x2="${R(Rh.x)}" y2="${R(Rh.y)}"/><line class="ularm dash" x1="${R(B.x)}" y1="${R(B.y)}" x2="${R(Sh.x)}" y2="${R(Sh.y)}"/>`;
+  s += `<circle class="ulh${hot('ulrot')}" cx="${R(Rh.x)}" cy="${R(Rh.y)}" r="6"/>`;
+  s += `<rect class="ulh${hot('ulscale')}" x="${R(Sh.x - 5)}" y="${R(Sh.y - 5)}" width="10" height="10"/>`;
+  s += `<circle class="ulb${hot('ulbase')}" cx="${R(B.x)}" cy="${R(B.y)}" r="8"/><path class="ulbx" d="M${R(B.x - 13)} ${R(B.y)}h26M${R(B.x)} ${R(B.y - 13)}v26"/>`;
+  if (drag && (drag.kind === 'ulrot' || drag.kind === 'ulscale')) s += `<text class="ullabel" x="${R(B.x + 14)}" y="${R(B.y - 14)}">${drag.kind === 'ulrot' ? `${R(ul.rot)}°` : `× ${Math.round(ul.s * 1000) / 1000}`}</text>`;
+  return s;
+}
+function hitUl(sx, sy) {
+  const ul = G().ul; if (!ul) return null;
+  const { B, Rh, Sh } = ulHandlePos(ul), near = (p, r) => Math.hypot(p.x - sx, p.y - sy) <= r;
+  if (near(B, 10)) return 'ulbase';
+  if (near(Rh, 9)) return 'ulrot';
+  if (near(Sh, 9)) return 'ulscale';
+  if (ulHit(ul, toWorld(sx, sy))) return 'ulmove';
+  return null;
+}
+function setUlEdit(on) {
+  if (on && !G().ul) { flash('Import an image first: the Underlay panel, or drop one on the board.'); on = false; }
+  ulEdit = on; hoverUl = null; render();
+}
+async function importImage(file) {
+  if (!file || !/^image\//.test(file.type)) { flash('That isn’t an image file.'); return; }
+  try {
+    const { w, h } = await imageSize(file);
+    const id = await putImage(file);
+    edit(() => { G().ul = newUnderlay(id, file.name || 'pasted image', w, h, frameOf(G())); });
+    ulEdit = true;
+    flash(`Underlay “${file.name || 'pasted image'}” added. Place it with the handles, then press U.`);
+  } catch (err) { flash(err.message); }
+}
+
 function thumb(g, h) {
+  if (mode === 'logo') {
+    const pad = Math.max(g.w, g.h) * .04;
+    return `<svg viewBox="${-pad} ${-pad} ${g.w + 2 * pad} ${g.h + 2 * pad}" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><path fill-rule="evenodd" d="${glyphD(g)}"/></svg>`;
+  }
   return `<svg viewBox="-40 ${font.metrics.cap - 60} ${g.adv + 80} ${font.metrics.desc - font.metrics.cap + 120}" preserveAspectRatio="xMidYMid meet" aria-hidden="true"${h ? ` style="height:${h}px"` : ''}><path fill-rule="evenodd" d="${glyphD(g)}"/></svg>`;
 }
 function renderList() {
-  $('#glist').innerHTML = font.glyphs.map((g, gi) => {
+  $('#glist').innerHTML = items().map((g, gi) => {
     const pts = g.contours.reduce((n, c) => n + c.nodes.length, 0);
-    return `<button class="grow${gi === cur ? ' cur' : ''}" data-gi="${gi}" title="${esc(g.id)}"><span class="mk">${gi === cur ? '&gt;' : ''}</span>${thumb(g)}<span class="nm">${String(gi + 1).padStart(2, '0')} ${esc(g.id)}</span><span class="sub">adv ${g.adv}</span><span class="sub">${g.contours.length} ctr ${pts} pts</span></button>`;
+    return `<button class="grow${gi === cur ? ' cur' : ''}" data-gi="${gi}" title="${esc(g.id)}"><span class="mk">${gi === cur ? '&gt;' : ''}</span>${thumb(g)}<span class="nm">${String(gi + 1).padStart(2, '0')} ${esc(g.id)}</span><span class="sub">${mode === 'logo' ? `${g.w} × ${g.h}` : `adv ${g.adv}`}${g.ul ? ' · img' : ''}</span><span class="sub">${g.contours.length} ctr ${pts} pts</span></button>`;
   }).join('');
 }
 function setVal(id, v) { const el = $(id); if (document.activeElement !== el) el.value = v; }
 function renderInspector() {
   const g = G();
-  setVal('#gid', g.id); setVal('#gadv', g.adv);
+  setVal('#gid', g.id);
+  if (mode === 'logo') { setVal('#dw', g.w); setVal('#dh', g.h); } else setVal('#gadv', g.adv);
+  renderUnderlayPanel(g);
   const M = font.metrics; setVal('#mCap', M.cap); setVal('#mXh', M.xh); setVal('#mBase', M.base); setVal('#mDesc', M.desc);
   const one = sel.size === 1 ? nodeOf([...sel][0]) : null;
   $('#nx').disabled = $('#ny').disabled = !one;
@@ -430,11 +514,21 @@ function renderInspector() {
   $('#sumGlyph').textContent = `${g.id} · ${g.contours.length} ctr · ${pts} pts`;
   $('#sumCorner').textContent = `r ${cornerR}`;
   $('#sumPath').textContent = `${glyphD(g).length} ch`;
-  $('#sumList').textContent = `${font.glyphs.length}`;
+  $('#sumList').textContent = `${items().length}`;
   for (const id of ['#pSharp', '#pSmooth', '#pFree', '#cClose', '#cRev', '#pDel']) $(id).disabled = !sel.size && !(active !== null && ['#cClose', '#cRev'].includes(id));
   const dt = $('#dtext');
-  if (document.activeElement !== dt) { dt.value = glyphD(g); $('#dnote').className = 'note'; $('#dnote').textContent = 'Edit to reshape the glyph. M L H V C S Q T Z, absolute or relative.'; }
+  if (document.activeElement !== dt) { dt.value = glyphD(g); $('#dnote').className = 'note'; $('#dnote').textContent = `Edit to reshape the ${noun()}. M L H V C S Q T Z, absolute or relative.`; }
   hlD();
+}
+function renderUnderlayPanel(g) {
+  const ul = g.ul;
+  $('#sumUl').textContent = ul ? `${ul.name} · ${Math.round(ul.op * 100)}%` : 'none';
+  for (const id of ['#ulEdit', '#ulFit', '#ulRemove', '#ulOp', '#ulVis', '#ulInv', '#ulX', '#ulY', '#ulRot', '#ulS']) $(id).disabled = !ul;
+  $('#ulEdit').classList.toggle('on', ulEdit);
+  setVal('#ulOp', ul ? Math.round(ul.op * 100) : 50); $('#ulOpV').textContent = ul ? `${Math.round(ul.op * 100)}%` : '';
+  $('#ulVis').checked = ul ? ul.vis !== false : true; $('#ulInv').checked = !!ul?.inv;
+  setVal('#ulX', ul ? R(ul.x) : ''); setVal('#ulY', ul ? R(ul.y) : '');
+  setVal('#ulRot', ul ? R(ul.rot) : ''); setVal('#ulS', ul ? Math.round(ul.s * 10000) / 10000 : '');
 }
 function hlD() {
   const t = $('#dtext');
@@ -481,6 +575,11 @@ function renderPreview() {
 function render() {
   renderCanvas(); renderList(); renderInspector(); renderPreview();
   $('#tSelect').classList.toggle('on', tool === 'select'); $('#tPen').classList.toggle('on', tool === 'pen');
+  const logo = mode === 'logo';
+  $('#mGlyph').classList.toggle('on', !logo); $('#mLogo').classList.toggle('on', logo);
+  $('.preview').hidden = logo; $('#secMetrics').hidden = logo; $('#rowAdv').hidden = logo; $('#rowSize').hidden = !logo;
+  $('#lowerLbl').hidden = logo; $('#bCopyDrawSvg').hidden = !logo;
+  $('#listTitle').textContent = logo ? 'Drawings' : 'Glyph list'; $('#itemTitle').textContent = logo ? 'Drawing' : 'Glyph';
   $('#bUndo').disabled = !undoS.length; $('#bRedo').disabled = !redoS.length;
   $('#snap').checked = snapOn; setVal('#grid', gridSize); $('#lowerOn').checked = showLower;
 }
@@ -489,15 +588,27 @@ function render() {
 function fit() {
   const W = cv.clientWidth, H = cv.clientHeight, g = G(), M = font.metrics;
   if (!W || !H) return;
-  const x0 = -80, x1 = g.adv + 80, y0 = Math.min(0, M.cap - 60), y1 = Math.max(1000, M.desc + 40);
+  const pad = mode === 'logo' ? Math.max(g.w, g.h) * .06 : 0;
+  const [x0, x1, y0, y1] = mode === 'logo'
+    ? [-pad, g.w + pad, -pad, g.h + pad]
+    : [-80, g.adv + 80, Math.min(0, M.cap - 60), Math.max(1000, M.desc + 40)];
   view.k = Math.min(W / (x1 - x0), (H - 30) / (y1 - y0)) * .94;
   view.tx = (W - (x0 + x1) * view.k) / 2; view.ty = (H - 30 - (y0 + y1) * view.k) / 2;
+}
+function setMode(m) {
+  if (m === mode) return;
+  if (cornerMode) finishCorner(true);
+  ensureDrawings(font);
+  [cur, curOther] = [curOther, cur]; mode = m;
+  cur = Math.max(0, Math.min(cur, items().length - 1));
+  sel.clear(); active = null; refSeg = null; hoverSeg = null; focusSeg = null; focusFil = null; armed.clear(); ulEdit = false;
+  fit(); save(); render();
 }
 function zoomAt(sx, sy, f) {
   const w = toWorld(sx, sy); view.k = Math.min(40, Math.max(.05, view.k * f));
   view.tx = sx - w.x * view.k; view.ty = sy - w.y * view.k;
 }
-function selectGlyph(gi) { if (gi === cur || gi < 0 || gi >= font.glyphs.length) return; if (cornerMode) finishCorner(true); cur = gi; sel.clear(); active = null; refSeg = null; hoverSeg = null; focusSeg = null; focusFil = null; armed.clear(); fit(); render(); }
+function selectGlyph(gi) { if (gi === cur || gi < 0 || gi >= items().length) return; ulEdit = false; if (cornerMode) finishCorner(true); cur = gi; sel.clear(); active = null; refSeg = null; hoverSeg = null; focusSeg = null; focusFil = null; armed.clear(); fit(); render(); }
 
 /* ---------- canvas interaction ---------- */
 function local(e) { const r = cv.getBoundingClientRect(); return { sx: e.clientX - r.left, sy: e.clientY - r.top }; }
@@ -517,6 +628,12 @@ cv.addEventListener('pointerdown', e => {
   cv.setPointerCapture(e.pointerId);
   if (e.button === 1 || (e.button === 0 && spaceDown)) { e.preventDefault(); drag = { kind: 'pan', sx, sy, tx: view.tx, ty: view.ty }; return; }
   if (e.button !== 0) return;
+  if (ulEdit) {
+    const t = hitUl(sx, sy), ul = G().ul, before = snapshot();
+    if (!t) return;
+    drag = { kind: t, before, w0: w, o: { x: ul.x, y: ul.y }, s0: ul.s, d0: Math.hypot(w.x - ul.x, w.y - ul.y) || 1 };
+    render(); return;
+  }
   const h = hit(sx, sy), g = G(), before = snapshot();
   if (h && h.type === 'handle') { const k = key(h.ci, h.ni); if (!sel.has(k)) sel = new Set([k]); const own = `${h.ci}:${h.ni}:${h.h}`, n0 = nodeOf(k);
     const arm = [...armed].filter(a => a !== own).map(a => { const p = a.split(':'), n = nodeOf(`${p[0]}:${p[1]}`); return n && n[p[2]] ? { k: `${p[0]}:${p[1]}`, h: p[2], o: { ...n[p[2]] } } : null; }).filter(Boolean);
@@ -566,6 +683,11 @@ cv.addEventListener('pointerdown', e => {
   sel = new Set(drag.base); render();
 });
 cv.addEventListener('dblclick', e => {
+  if (ulEdit) {
+    const { sx, sy } = local(e), ul = G().ul;
+    if (ul && hitUl(sx, sy)) edit(() => { G().ul = ulSetBase(ul, toWorld(sx, sy)); });
+    return;
+  }
   const { sx, sy } = local(e), h = hit(sx, sy);
   if (!h) return;
   if (h.type === 'anchor') edit(() => { const c = G().contours[h.ci], n = c.nodes[h.ni]; if (n.i || n.o) { n.i = n.o = null; n.s = false; } else autoSmooth(c, h.ni); });
@@ -577,6 +699,12 @@ window.addEventListener('pointermove', e => {
     if (e.target !== cv && !cv.contains(e.target)) return;
     hover = w; hoverS = { sx, sy };
     if (cornerMode) { cv.style.cursor = 'crosshair'; updateCorner(Math.round(Math.hypot(w.x - cornerMode.ref.x, w.y - cornerMode.ref.y))); return; }
+    if (ulEdit) {
+      const t = spaceDown ? null : hitUl(sx, sy);
+      if (t !== hoverUl) { hoverUl = t; requestRender(); }
+      cv.style.cursor = spaceDown ? 'grab' : t === 'ulmove' ? 'move' : t ? 'pointer' : 'default';
+      return;
+    }
     const h = spaceDown ? null : hit(sx, sy);
     const hs = h && h.type === 'seg' ? { ci: h.ci, ai: h.ni } : null;
     if ((hs && key(hs.ci, hs.ai)) !== (hoverSeg && key(hoverSeg.ci, hoverSeg.ai))) { hoverSeg = hs; requestRender(); }
@@ -616,6 +744,27 @@ window.addEventListener('pointermove', e => {
       break;
     }
     case 'adv': G().adv = Math.max(0, Math.round(sn(w.x))); break;
+    case 'ulmove': {
+      const ul = G().ul;
+      let dx = w.x - drag.w0.x, dy = w.y - drag.w0.y;
+      const axis = (e.ctrlKey || e.metaKey) && e.shiftKey ? (Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y') : null;
+      // With snap on, the basepoint lands on the grid, so a feature picked as basepoint lines up with grid lines.
+      ul.x = axis === 'y' ? drag.o.x : sn(drag.o.x + dx);
+      ul.y = axis === 'x' ? drag.o.y : sn(drag.o.y + dy);
+      break;
+    }
+    case 'ulbase': G().ul = ulSetBase(G().ul, w); break;
+    case 'ulrot': {
+      const ul = G().ul;
+      let a = Math.atan2(w.y - ul.y, w.x - ul.x) * 180 / Math.PI;
+      ul.rot = e.shiftKey ? Math.round(a / 15) * 15 : R(a);
+      break;
+    }
+    case 'ulscale': {
+      const ul = G().ul;
+      ul.s = Math.max(.001, drag.s0 * Math.hypot(w.x - ul.x, w.y - ul.y) / drag.d0);
+      break;
+    }
     case 'fillet': {
       const c = G().contours[drag.ci], f = filletInfo(c, drag.ai); if (!f) break;
       const t = (w.x - f.V.x) * f.bis.x + (w.y - f.V.y) * f.bis.y, sn2 = Math.sin(f.th / 2);
@@ -864,38 +1013,68 @@ $('#nx').onchange = nodeField('x'); $('#ny').onchange = nodeField('y');
 
 /* ---------- glyph ops ---------- */
 function freeId() {
+  if (mode === 'logo') { let n = font.drawings.length + 1; while (font.drawings.some(d => d.id === `logo${n}`)) n++; return `logo${n}`; }
   const pool = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'.split('');
   for (const id of pool) if (!font.glyphs.some(g => g.id === id)) return id;
   let n = 1; while (font.glyphs.some(g => g.id === `glyph${n}`)) n++; return `glyph${n}`;
 }
 $('#bAdd').onclick = () => {
-  edit(() => { font.glyphs.push({ id: freeId(), adv: 600, contours: [] }); cur = font.glyphs.length - 1; sel.clear(); active = null; });
+  edit(() => {
+    const list = items(), g = G();
+    list.push(mode === 'logo' ? { id: freeId(), w: g?.w || 1200, h: g?.h || 600, contours: [] } : { id: freeId(), adv: 600, contours: [] });
+    cur = list.length - 1; sel.clear(); active = null; ulEdit = false;
+  });
   fit(); tool = 'pen'; render(); $('#gid').focus(); $('#gid').select();
 };
 $('#bDup').onclick = () => {
   edit(() => {
-    const g = clone(G()); let id = `${g.id}.alt`, n = 2;
-    while (font.glyphs.some(x => x.id === id)) id = `${g.id}.alt${n++}`;
-    g.id = id; font.glyphs.splice(cur + 1, 0, g); cur++; sel.clear(); active = null;
+    const g = clone(G()), list = items(), suf = mode === 'logo' ? '-copy' : '.alt'; let id = `${g.id}${suf}`, n = 2;
+    while (list.some(x => x.id === id)) id = `${g.id}${suf}${n++}`;
+    g.id = id; list.splice(cur + 1, 0, g); cur++; sel.clear(); active = null; ulEdit = false;
   });
 };
 let delArm = 0;
 $('#bDelG').onclick = () => {
   const b = $('#bDelG');
-  if (font.glyphs.length < 2) { $('#gidnote').className = 'note err'; $('#gidnote').textContent = 'Keep at least one glyph.'; return; }
+  if (items().length < 2) { $('#gidnote').className = 'note err'; $('#gidnote').textContent = `Keep at least one ${noun()}.`; return; }
   if (!b.classList.contains('armed')) { b.classList.add('armed'); b.textContent = `Del “${G().id}”?`; clearTimeout(delArm); delArm = setTimeout(() => { b.classList.remove('armed'); b.textContent = 'Del'; }, 3000); return; }
   clearTimeout(delArm); b.classList.remove('armed'); b.textContent = 'Del';
-  edit(() => { font.glyphs.splice(cur, 1); cur = Math.min(cur, font.glyphs.length - 1); sel.clear(); active = null; });
+  edit(() => { items().splice(cur, 1); cur = Math.min(cur, items().length - 1); sel.clear(); active = null; ulEdit = false; });
   fit(); render();
 };
 $('#gid').onchange = e => {
   const v = e.target.value.trim(), note = $('#gidnote');
   if (!v || /\s|\//.test(v)) { note.className = 'note err'; note.textContent = 'IDs need at least one character and no spaces or slashes.'; e.target.value = G().id; return; }
-  if (font.glyphs.some((g, gi) => gi !== cur && g.id === v)) { note.className = 'note err'; note.textContent = `“${v}” is already used by another glyph.`; e.target.value = G().id; return; }
-  note.className = 'note'; note.textContent = v.length > 1 ? `Type /${v} in the proof line to use it.` : '';
+  if (items().some((g, gi) => gi !== cur && g.id === v)) { note.className = 'note err'; note.textContent = `“${v}” is already used by another ${noun()}.`; e.target.value = G().id; return; }
+  note.className = 'note'; note.textContent = mode === 'glyph' && v.length > 1 ? `Type /${v} in the proof line to use it.` : '';
   edit(() => { G().id = v; });
 };
 $('#gadv').onchange = e => { const v = parseFloat(e.target.value); if (isFinite(v) && v >= 0) edit(() => { G().adv = v; }); };
+for (const [id, k] of [['#dw', 'w'], ['#dh', 'h']])
+  $(id).onchange = e => { const v = parseFloat(e.target.value); if (isFinite(v) && v > 0) edit(() => { G()[k] = v; }); };
+
+/* ---------- underlay panel ---------- */
+$('#ulImport').onclick = () => $('#ulFile').click();
+$('#ulFile').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) importImage(f); };
+$('#ulEdit').onclick = () => setUlEdit(!ulEdit);
+$('#ulFit').onclick = () => edit(() => { G().ul = ulFit(G().ul, frameOf(G())); });
+$('#ulRemove').onclick = () => { ulEdit = false; edit(() => { delete G().ul; }); flash('Underlay removed. Ctrl+Z brings it back.'); };
+let opBefore;
+$('#ulOp').addEventListener('pointerdown', () => { opBefore = snapshot(); });
+$('#ulOp').oninput = e => { const ul = G().ul; if (!ul) return; ul.op = +e.target.value / 100; $('#ulOpV').textContent = `${e.target.value}%`; renderCanvas(); };
+$('#ulOp').onchange = () => { commit(opBefore); opBefore = undefined; render(); };
+$('#ulVis').onchange = e => edit(() => { G().ul.vis = e.target.checked; });
+$('#ulInv').onchange = e => edit(() => { G().ul.inv = e.target.checked; });
+for (const [id, k, min] of [['#ulX', 'x'], ['#ulY', 'y'], ['#ulRot', 'rot'], ['#ulS', 's', .001]])
+  $(id).onchange = e => { const v = parseFloat(e.target.value); if (isFinite(v) && (min === undefined || v >= min)) edit(() => { G().ul[k] = v; }); };
+const stage = $('.stage');
+stage.addEventListener('dragover', e => { if ([...(e.dataTransfer?.items || [])].some(i => i.kind === 'file')) { e.preventDefault(); stage.classList.add('drop'); } });
+stage.addEventListener('dragleave', () => stage.classList.remove('drop'));
+stage.addEventListener('drop', e => {
+  e.preventDefault(); stage.classList.remove('drop');
+  const f = [...(e.dataTransfer?.files || [])].find(f => f.type.startsWith('image/'));
+  if (f) importImage(f); else flash('Drop an image file (PNG, JPEG, WebP, SVG…).');
+});
 $('#glist').onclick = e => { const b = e.target.closest('[data-gi]'); if (b) selectGlyph(+b.dataset.gi); };
 
 for (const [id, k] of [['#mCap', 'cap'], ['#mXh', 'xh'], ['#mBase', 'base'], ['#mDesc', 'desc']])
@@ -941,6 +1120,10 @@ function svgDefs() {
   const uses = items.filter(i => i.g).map(i => `  <use href="#${esc(xmlId(i.g.id))}" x="${R(i.x)}"/>`).join('\n');
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${b.x} ${b.y} ${b.w} ${b.h}" fill="currentColor" fill-rule="evenodd">\n  <defs>\n${defs}\n  </defs>\n${uses}\n</svg>`;
 }
+function svgDrawing(g = G()) {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${g.w} ${g.h}" width="${g.w}" height="${g.h}" fill="currentColor" fill-rule="evenodd">\n  <path id="${esc(xmlId(g.id))}" d="${glyphD(g)}"/>\n</svg>`;
+}
+const currentSvg = () => mode === 'logo' ? svgDrawing() : svgDefs();
 function svgFlat() {
   const { items } = layout(ptext), b = bbox(items);
   const paths = items.filter(i => i.g).map(i => `  <path data-glyph="${esc(i.g.id)}" transform="translate(${R(i.x)} 0)" d="${glyphD(i.g)}"/>`).join('\n');
@@ -949,12 +1132,24 @@ function svgFlat() {
 $('#bCopySvg').onclick = () => copyText(svgDefs(), $('#pnote'), 'Copied SVG of the proof line (glyphs as <defs> paths placed with <use>).', null);
 const io = $('#iotext'), ionote = $('#ionote');
 const ioMsg = (t, err) => { ionote.className = `note${err ? ' err' : ''}`; ionote.textContent = t; };
-$('#bIO').onclick = () => { $('#modal').hidden = false; io.value = JSON.stringify(font, null, 1); ioMsg('Project JSON. Loading JSON replaces everything; loading SVG adds each <path> as a glyph named by its id.'); };
+$('#bIO').onclick = () => {
+  $('#modal').hidden = false; io.value = JSON.stringify(font, null, 1);
+  ioMsg(mode === 'logo'
+    ? 'Project JSON. Loading JSON replaces everything; loading SVG adds it as a new drawing. Underlay images stay in this browser and aren’t part of the JSON.'
+    : 'Project JSON. Loading JSON replaces everything; loading SVG adds each <path> as a glyph named by its id. Underlay images stay in this browser and aren’t part of the JSON.');
+};
 $('#ioClose').onclick = () => { $('#modal').hidden = true; };
 $('#modal').onclick = e => { if (e.target.id === 'modal') $('#modal').hidden = true; };
 $('#ioJson').onclick = () => { io.value = JSON.stringify(font, null, 1); ioMsg('Project JSON: all glyphs, metrics and spacing.'); };
-$('#ioSvgDefs').onclick = () => { io.value = svgDefs(); ioMsg(`SVG of the proof line “${ptext}”, each glyph defined once with its id.`); };
-$('#ioSvgFlat').onclick = () => { io.value = svgFlat(); ioMsg(`SVG of the proof line “${ptext}”, one path per letter.`); };
+$('#ioSvgDefs').onclick = () => {
+  if (mode === 'logo') { io.value = svgDrawing(); ioMsg(`SVG of the drawing “${G().id}”, sized to its artboard.`); return; }
+  io.value = svgDefs(); ioMsg(`SVG of the proof line “${ptext}”, each glyph defined once with its id.`);
+};
+$('#ioSvgFlat').onclick = () => {
+  if (mode === 'logo') { $('#ioSvgDefs').onclick(); return; }
+  io.value = svgFlat(); ioMsg(`SVG of the proof line “${ptext}”, one path per letter.`);
+};
+$('#bCopyDrawSvg').onclick = () => copyText(svgDrawing(), $('#gidnote'), `Copied SVG of “${G().id}”.`, null);
 $('#ioCopy').onclick = () => copyText(io.value, ionote, 'Copied.', io);
 function loadText(t) {
   t = t.trim();
@@ -964,7 +1159,7 @@ function loadText(t) {
     if (!f || !Array.isArray(f.glyphs) || !f.glyphs.length) return ioMsg('That JSON has no glyphs list.', true);
     edit(() => {
       font = Object.assign(sampleFont(), f); font.metrics = Object.assign({ cap: 100, xh: 340, base: 800, desc: 960 }, f.metrics);
-      cur = 0; sel.clear(); active = null;
+      ensureDrawings(font); cur = 0; curOther = 0; sel.clear(); active = null; ulEdit = false;
     });
     fit(); render(); return ioMsg(`Loaded ${font.glyphs.length} glyphs.`);
   }
@@ -973,6 +1168,7 @@ function loadText(t) {
     if (doc.querySelector('parsererror')) return ioMsg('That SVG doesn’t parse.', true);
     const paths = [...doc.querySelectorAll('path')];
     if (!paths.length) return ioMsg('No <path> elements found.', true);
+    if (mode === 'logo') return importDrawing(doc, paths);
     let added = 0, failed = [];
     const b = snapshot();
     paths.forEach((p, n) => {
@@ -990,19 +1186,36 @@ function loadText(t) {
   }
   ioMsg('Paste project JSON (starts with {) or SVG (starts with <).', true);
 }
+// Logo mode: an SVG file becomes one new drawing; all its paths merge, and the viewBox becomes the artboard.
+function importDrawing(doc, paths) {
+  const failed = [], cs = paths.flatMap((p, n) => { try { return parseD(p.getAttribute('d') || ''); } catch (e) { failed.push(`path ${n + 1}: ${e.message}`); return []; } });
+  if (!cs.length) return ioMsg(`No usable paths. ${failed.join('; ')}`, true);
+  const vb = (doc.documentElement.getAttribute('viewBox') || '').trim().split(/[\s,]+/).map(Number);
+  let ox = 0, oy = 0, w, h;
+  if (vb.length === 4 && vb.every(isFinite) && vb[2] > 0 && vb[3] > 0) [ox, oy, w, h] = vb;
+  else {
+    let mx = 0, my = 0; cs.forEach(c => c.nodes.forEach(n => { mx = Math.max(mx, n.x); my = Math.max(my, n.y); }));
+    w = Math.ceil(mx + 20); h = Math.ceil(my + 20);
+  }
+  if (ox || oy) cs.forEach(c => c.nodes.forEach(n => moveNodeTo(n, n.x - ox, n.y - oy)));
+  let id = 'import', k = 2; while (font.drawings.some(d => d.id === id)) id = `import${k++}`;
+  edit(() => { font.drawings.push({ id, w: R(w), h: R(h), contours: cs }); cur = font.drawings.length - 1; sel.clear(); active = null; ulEdit = false; });
+  fit(); render();
+  return ioMsg(`Imported “${id}”: ${cs.length} contour${cs.length === 1 ? '' : 's'}, ${R(w)} × ${R(h)}.${failed.length ? ` Skipped ${failed.join('; ')}` : ''}`, failed.length > 0);
+}
 $('#ioLoad').onclick = () => loadText(io.value);
 function download(name, text, type) {
   const url = URL.createObjectURL(new Blob([text], { type }));
   const a = Object.assign(document.createElement('a'), { href: url, download: name });
   document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-const fileBase = () => (ptext.replace(/[^\w.-]+/g, '_').replace(/^_+|_+$/g, '') || 'logo');
+const fileBase = () => ((mode === 'logo' ? G().id : ptext).replace(/[^\w.-]+/g, '_').replace(/^_+|_+$/g, '') || 'logo');
 $('#ioDlJson').onclick = () => download(`${(font.name || 'glyphpath').replace(/[^\w.-]+/g, '_')}.json`, JSON.stringify(font, null, 1), 'application/json');
-$('#ioDlSvg').onclick = () => download(`${fileBase()}.svg`, svgDefs(), 'image/svg+xml');
+$('#ioDlSvg').onclick = () => download(`${fileBase()}.svg`, currentSvg(), 'image/svg+xml');
 $('#ioSaveSvg').onclick = async () => {
   const name = `${fileBase()}.svg`;
   try {
-    const r = await fetch(`api/export/${encodeURIComponent(name)}`, { method: 'PUT', headers: { 'content-type': 'image/svg+xml' }, body: svgDefs() });
+    const r = await fetch(`api/export/${encodeURIComponent(name)}`, { method: 'PUT', headers: { 'content-type': 'image/svg+xml' }, body: currentSvg() });
     ioMsg(r.ok ? `Saved exports/${name} in the project folder.` : `Saving failed (${r.status}).`, !r.ok);
   } catch (e) { ioMsg('The server isn’t reachable.', true); }
 };
@@ -1018,9 +1231,11 @@ $('#pspace').onchange = e => { const v = parseFloat(e.target.value); if (isFinit
 $('#pview').onclick = e => { const p = e.target.closest('[data-gi]'); if (p) selectGlyph(+p.dataset.gi); };
 
 /* ---------- toolbar ---------- */
-function setTool(t) { tool = t; if (t === 'select') active = null; render(); }
+function setTool(t) { tool = t; ulEdit = false; if (t === 'select') active = null; render(); }
 $('#tSelect').onclick = () => setTool('select');
 $('#tPen').onclick = () => setTool('pen');
+$('#mGlyph').onclick = () => setMode('glyph');
+$('#mLogo').onclick = () => setMode('logo');
 $('#bUndo').onclick = undo; $('#bRedo').onclick = redo;
 $('#bFit').onclick = () => { fit(); render(); };
 $('#bZin').onclick = () => { zoomAt(cv.clientWidth / 2, cv.clientHeight / 2, 1.25); render(); };
@@ -1055,6 +1270,9 @@ window.addEventListener('keydown', e => {
   else if (k === 'f' || k === 'F') { fit(); render(); }
   else if (k === 'g' || k === 'G') setLower(!showLower);
   else if (k === 'h' || k === 'H') showKeys(true);
+  else if (k === 'm' || k === 'M') setMode(mode === 'logo' ? 'glyph' : 'logo');
+  else if (k === 'u' || k === 'U') setUlEdit(!ulEdit);
+  else if (k === 'Escape' && ulEdit) setUlEdit(false);
   else if (k === 'c' || k === 'C') {
     if (active === null && !sel.size) flash('Select a point on a contour (or draw with the pen) to close it.');
     else $('#cClose').onclick();
@@ -1079,6 +1297,7 @@ window.addEventListener('keydown', e => {
   else if (k === ']') selectGlyph(cur + 1);
   else if (k.startsWith('Arrow')) {
     e.preventDefault(); const d = e.shiftKey ? 10 : 1;
+    if (ulEdit && G().ul) { const dx = k === 'ArrowLeft' ? -d : k === 'ArrowRight' ? d : 0, dy = k === 'ArrowUp' ? -d : k === 'ArrowDown' ? d : 0; edit(() => { G().ul.x += dx; G().ul.y += dy; }); return; }
     nudge(k === 'ArrowLeft' ? -d : k === 'ArrowRight' ? d : 0, k === 'ArrowUp' ? -d : k === 'ArrowDown' ? d : 0);
   }
 });
@@ -1092,17 +1311,17 @@ function copySel(cut) {
   const cis = whole ? g.contours.map((_, i) => i) : [...selByContour().keys()];
   if (!cis.length) { flash('Nothing to copy: this glyph is empty.'); return; }
   const contours = cis.map(ci => clone(g.contours[ci]));
-  clip = { contours, adv: g.adv, from: cur, d: contours.map(contourD).join(' ') };
+  clip = { contours, adv: mode === 'glyph' ? g.adv : 0, from: `${mode}:${cur}`, d: contours.map(contourD).join(' ') };
   try { navigator.clipboard.writeText(clip.d).catch(() => {}); } catch (e) {}
   if (cut) edit(() => { g.contours = g.contours.filter((_, i) => !cis.includes(i)); sel.clear(); active = null; });
   flash(`${cut ? 'Cut' : 'Copied'} ${whole ? `all of “${g.id}”` : `${contours.length} contour${contours.length > 1 ? 's' : ''}`}. Ctrl+V pastes into any glyph.`);
 }
 function pasteContours(cs, adv, fromClip) {
-  const off = fromClip && clip.from === cur && G().contours.length > 0 ? gridSize * 2 : 0;
+  const off = fromClip && clip.from === `${mode}:${cur}` && G().contours.length > 0 ? gridSize * 2 : 0;
   edit(() => {
     const g = G(), add = clone(cs);
     if (off) add.forEach(c => c.nodes.forEach(n => moveNodeTo(n, n.x + off, n.y + off)));
-    if (!g.contours.length && adv) g.adv = adv;
+    if (!g.contours.length && adv && mode === 'glyph') g.adv = adv;
     const start = g.contours.length; g.contours.push(...add);
     sel = new Set(); add.forEach((c, k) => c.nodes.forEach((_, ni) => sel.add(key(start + k, ni))));
     active = null; focusSeg = null; focusFil = null;
@@ -1114,6 +1333,8 @@ document.addEventListener('paste', e => {
   if (e.target.closest && e.target.closest('input,textarea')) return;
   if (!$('#modal').hidden) return;
   pasteHandled = true;
+  const img = [...(e.clipboardData?.files || [])].find(f => f.type.startsWith('image/'));
+  if (img) { e.preventDefault(); importImage(img); return; }
   const t = (e.clipboardData?.getData('text') || '').trim();
   e.preventDefault();
   if (!t || (clip && t === clip.d)) { pasteClip(); return; }
@@ -1137,6 +1358,7 @@ fetch('version.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).t
   const el = $('#ver'); el.textContent = `${v.build ? `build ${v.build}` : ''}${v.commit ? ` · ${v.commit}` : ''}`.replace(/^ · /, '');
   el.title = `Commit ${v.commit || '?'}${v.date ? `, ${v.date}` : ''}`;
 }).catch(() => {});
+cv.innerHTML = '<image id="ulimg" preserveAspectRatio="none" style="display:none"/><g id="ovl"></g>';
 let fitted = false;
 await load();
 setSaveState(serverOk ? 'saved' : 'saved in browser');
