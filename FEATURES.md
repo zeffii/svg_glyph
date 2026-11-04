@@ -62,7 +62,7 @@ Every glyph and drawing can have one image to trace over.
 - **Ctrl+Shift-drag** restricts any move to horizontal or vertical.
 - **Arrows** nudge by 1, or 10 with Shift.
 - **Alt-drag** a handle to break a smooth point.
-- The **point type** buttons are Sharp, Smooth (handles stay in line), **Equal** (in line and the same length, mirrored while you drag; key **E**, shown with a dot in the point) and Free (handles move independently).
+- The **point type** buttons are Sharp, Smooth (handles stay in line), **Equal** (in line and the same length, mirrored while you drag; key **E**. Equal pairs are drawn with gold arms, a tick across each arm and a dot in the point) and Free (handles move independently).
 - **Close**, **Reverse** and **Del pts** act on the selected contour.
 - **Snap** to a grid of any size. **Undo / redo** with Ctrl+Z / Ctrl+Shift+Z.
 

@@ -71,6 +71,9 @@ kbd{font-family:inherit;color:var(--dim);margin-left:1ch}
 #cv .hd.hot{fill:var(--cyan)}
 #cv .an{fill:var(--board);stroke:var(--fg);stroke-width:1.5}
 #cv .an.sel{fill:var(--magenta);stroke:var(--magenta)}
+#cv .hl.eq{stroke:var(--guide);stroke-width:1.5}
+#cv .hd.eq{stroke:var(--guide)}
+#cv .hd.eq.hot{fill:var(--guide)}
 #cv .symdot{fill:var(--fg);pointer-events:none}
 #cv .an.sel+.symdot{fill:var(--board)}
 #cv .start{fill:none;stroke:var(--fg);stroke-width:1;opacity:.45}
@@ -178,3 +181,4 @@ input[type=range]{accent-color:var(--muted);width:14ch;margin:0}
 .m{color:var(--muted)}
 .stage.drop{outline:2px dashed var(--guide);outline-offset:-6px}
 .top,.glyphs,.bar,.kv>span:first-child,.hint,.btns,label{user-select:none;-webkit-user-select:none}
+.kv .vals>button{padding:1px 5px}

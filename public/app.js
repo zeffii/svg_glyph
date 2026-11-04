@@ -491,22 +491,27 @@ function renderCanvas() {
       markArm(`${ci}:${ai}:o`, st); markArm(`${ci}:${bi}:i`, st);
     });
   });
-  let lines = '', linesC = '', linesP = '', hds = '', ans = '';
+  let lines = '', linesC = '', linesP = '', linesE = '', hds = '', ans = '';
   if (showNodes) g.contours.forEach((c, ci) => c.nodes.forEach((n, ni) => {
     const a = toScreen(n);
     for (const h of ['i', 'o']) if (n[h]) {
       const b = toScreen(n[h]);
-      const arm = `M${R(a.x)} ${R(a.y)}L${R(b.x)} ${R(b.y)}`, st = armState.get(`${ci}:${ni}:${h}`);
-      if (st === 'col') linesC += arm; else if (st === 'par') linesP += arm; else lines += arm;
+      const arm = `M${R(a.x)} ${R(a.y)}L${R(b.x)} ${R(b.y)}`, st = armState.get(`${ci}:${ni}:${h}`), eq = n.s && n.sym && n.i && n.o;
+      if (eq) {
+        // Equal pair: gold arm with a tick across its middle (the "equal length" mark).
+        const dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy) || 1, px = -dy / l * 5, py = dx / l * 5, mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+        linesE += `${arm}M${R(mx - px)} ${R(my - py)}L${R(mx + px)} ${R(my + py)}`;
+      }
+      else if (st === 'col') linesC += arm; else if (st === 'par') linesP += arm; else lines += arm;
       const hot = hoverH === `${ci}:${ni}:${h}` || armed.has(`${ci}:${ni}:${h}`) || (drag && drag.kind === 'handle' && drag.k === key(ci, ni) && drag.h === h);
-      hds += `<circle class="hd${hot ? ' hot' : ''}" cx="${R(b.x)}" cy="${R(b.y)}" r="${hot ? 4.5 : 3.5}"/>`;
+      hds += `<circle class="hd${eq ? ' eq' : ''}${hot ? ' hot' : ''}" cx="${R(b.x)}" cy="${R(b.y)}" r="${hot ? 4.5 : 3.5}"/>`;
     }
     const cls = `an${sel.has(key(ci, ni)) ? ' sel' : ''}`;
     if (ni === 0) ans += `<circle class="start" cx="${R(a.x)}" cy="${R(a.y)}" r="8.5"/>`;
     ans += n.s ? `<circle class="${cls}" cx="${R(a.x)}" cy="${R(a.y)}" r="4.5"/>` : `<rect class="${cls}" x="${R(a.x - 4)}" y="${R(a.y - 4)}" width="8" height="8"/>`;
     if (n.s && n.sym) ans += `<circle class="symdot" cx="${R(a.x)}" cy="${R(a.y)}" r="1.6"/>`;
   }));
-  s += `<path class="hl" d="${lines}"/><path class="hl col" d="${linesC}"/><path class="hl par" d="${linesP}"/>${hds}${ans}`;
+  s += `<path class="hl" d="${lines}"/><path class="hl col" d="${linesC}"/><path class="hl par" d="${linesP}"/><path class="hl eq" d="${linesE}"/>${hds}${ans}`;
   if (showNodes) g.contours.forEach((c, ci) => c.nodes.forEach((n, ai) => {
     if (!n.o) return;
     const f = filletInfo(c, ai); if (!f) return;

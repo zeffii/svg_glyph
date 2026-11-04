@@ -2,6 +2,11 @@
 
 Newest first. Each numbered entry is one build; the number shows in the app header next to the commit.
 
+## 016 · 2026-11-04
+
+- Equal handle pairs now show the equal-length mark: both arms are drawn in gold with a tick across the middle of each, and the handle ends are gold. Gold takes priority over the green in-line colouring for those arms.
+- Inspector row buttons are slightly narrower, so Sharp / Smooth / Equal / Free fit on one line.
+
 ## 015 · 2026-11-04
 
 - **Equal handles:** select points and press **E**, or use the new **Equal** point-type button. Each point's two handles are set in line at their average length, and they stay mirrored when you drag either one. Equal points show a dot inside the point. Alt-drag still breaks a handle free.
