@@ -2,6 +2,13 @@
 
 Newest first. Each numbered entry is one build; the number shows in the app header next to the commit.
 
+## 025 · 2026-11-04
+
+- **Join / weld end points.**
+  - **J** over an open end moves it onto the other end of its contour and merges the two, closing the shape with no extra segment. The curve keeps its incoming handle and the start keeps its outgoing one.
+  - **J** with two open ends selected welds two contours into one at their midpoint, flipping one contour's direction if needed. **Shift+J** welds at the first selected end instead.
+  - **Drag-to-weld:** drag an open end within 8 screen pixels of another open end and the target gets a dashed ring. The range is on-screen distance, so zooming in makes it stricter. Hold for half a second and a **Weld? Y / N** prompt appears; it stays after you release and takes Y / Enter or N / Esc, or a click. Let go sooner and nothing welds.
+
 ## 024 · 2026-11-04
 
 - **Chain-icon menu:** hovering a point's chain icon opens a small menu beside it with **(S) Smooth**, which links the handles collinear, and **(E) Equidistant**. The current type is highlighted, and the menu stays open while the mouse is on the chain or the menu. Clicking the chain still toggles the lock, and the S and E keys work too.

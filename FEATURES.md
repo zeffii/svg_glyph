@@ -50,6 +50,9 @@ Every glyph and drawing can have one image to trace over.
 | **O**, then drag | Circle from the centre, radius snapped to the grid. **Shift**-drag makes an ellipse. It's built from 4 smooth points, so it edits like any other contour |
 | Click a circle's outline | Select it as a circle: the outline turns red, with a ⊕ centre and a □ radius handle (one per axis on an ellipse). Drag ⊕ to move it (the centre snaps to the grid) and □ to resize it |
 | **I** over a segment | Insert a point at the cursor; curves keep their shape |
+| **J** over an open end | Join: the end moves onto the other end and merges into it, closing the contour with no extra segment |
+| **J** with two open ends selected | Weld two open contours into one at the midpoint (**Shift+J**: at the first selected end) |
+| Drag an open end onto another end | Within 8 screen pixels the target is highlighted. Hold for half a second and a **Weld? Y / N** prompt appears, which stays up after you release. Let go sooner and nothing welds |
 | **D**, then **1–9** | Divide the hovered segment (or every segment between selected points) with that many evenly spaced points |
 | Double-click a segment | Insert a point (Select tool) |
 | Double-click a point | Toggle sharp / smooth |

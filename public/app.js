@@ -92,7 +92,7 @@ function commit(before) {
 }
 function undo() { if (!undoS.length) return; redoS.push(snapshot()); font = JSON.parse(undoS.pop()); afterHistory(); }
 function redo() { if (!redoS.length) return; undoS.push(snapshot()); font = JSON.parse(redoS.pop()); afterHistory(); }
-function afterHistory() { focusCirc = null; cur = Math.min(cur, items().length - 1); sel.clear(); active = null; refSeg = null; hoverSeg = null; focusSeg = null; focusFil = null; armed.clear(); save(); render(); }
+function afterHistory() { focusCirc = null; weldAsk = null; cur = Math.min(cur, items().length - 1); sel.clear(); active = null; refSeg = null; hoverSeg = null; focusSeg = null; focusFil = null; armed.clear(); save(); render(); }
 function edit(fn) { const b = snapshot(); fn(); enforceLocks(); commit(b); render(); }
 
 /* ---------- geometry ---------- */
@@ -569,6 +569,7 @@ function renderCanvas() {
     s += `<g class="lnk${Lk.locked ? ' on' : ''}${hot ? ' hot' : ''}" transform="translate(${R(Lk.x)} ${R(Lk.y)}) rotate(${R(Lk.ang * 180 / Math.PI)})"><circle class="bg" r="10"/>${links}</g>`;
   }
   if (linkMenu && showNodes) s += renderLinkMenu(g);
+  s += renderWeld(g);
   if (cornerMode && hover && cornerMode.gi === cur) {
     const a = toScreen(cornerMode.ref), b = toScreen(hover);
     s += `<line class="cguide" x1="${R(a.x)}" y1="${R(a.y)}" x2="${R(b.x)}" y2="${R(b.y)}"/><text class="clabel" x="${R(b.x + 12)}" y="${R(b.y - 12)}">${cornerMode.type === 'fillet' ? 'radius' : 'cut'} ${cornerMode.r}</text>`;
@@ -823,7 +824,7 @@ function zoomAt(sx, sy, f) {
   const w = toWorld(sx, sy); view.k = Math.min(40, Math.max(.05, view.k * f));
   view.tx = sx - w.x * view.k; view.ty = sy - w.y * view.k;
 }
-function selectGlyph(gi) { if (gi === cur || gi < 0 || gi >= items().length) return; ulEdit = false; divideMode = null; focusCirc = null; if (cornerMode) finishCorner(true); cur = gi; sel.clear(); active = null; refSeg = null; hoverSeg = null; focusSeg = null; focusFil = null; armed.clear(); fit(); render(); }
+function selectGlyph(gi) { if (gi === cur || gi < 0 || gi >= items().length) return; ulEdit = false; weldAsk = null; divideMode = null; focusCirc = null; if (cornerMode) finishCorner(true); cur = gi; sel.clear(); active = null; refSeg = null; hoverSeg = null; focusSeg = null; focusFil = null; armed.clear(); fit(); render(); }
 
 /* ---------- canvas interaction ---------- */
 function local(e) { const r = cv.getBoundingClientRect(); return { sx: e.clientX - r.left, sy: e.clientY - r.top }; }
@@ -839,6 +840,7 @@ function startMove(h, e, w, before, keepSel) {
 cv.addEventListener('pointerdown', e => {
   const { sx, sy } = local(e), w = toWorld(sx, sy);
   if (cornerMode) { e.preventDefault(); finishCorner(e.button === 0); return; }
+  if (weldAsk) { const wa = hitWeldAsk(sx, sy); if (wa) { if (wa !== 'box') answerWeld(wa === 'yes'); return; } answerWeld(false); }
   if (e.button === 0 && !spaceDown) {
     const hl = hit(sx, sy);
     if (hl && hl.type === 'link') { toggleLink(hl.Lk); return; }
@@ -972,6 +974,7 @@ window.addEventListener('pointermove', e => {
         const n = nodeOf(kk); n.x = o.x + dx; n.y = o.y + dy;
         n.i = o.i && { x: o.i.x + dx, y: o.i.y + dy }; n.o = o.o && { x: o.o.x + dx, y: o.o.y + dy };
       }
+      if (drag.orig.size === 1) updateWeldTarget();
       break;
     }
     case 'handle': {
@@ -1057,6 +1060,7 @@ window.addEventListener('pointerup', () => {
     if (!c || c.nodes.length < 4) g.contours.splice(drag.ci, 1);
     else { sel = new Set(c.nodes.map((_, ni) => key(drag.ci, ni))); focusCirc = drag.ci; flash(`${drag.rx === drag.ry ? `Circle r ${drag.rx}` : `Ellipse ${drag.rx} × ${drag.ry}`} at ${R(drag.c.x)}, ${R(drag.c.y)}.`); }
   }
+  if (!weldAsk) clearTimeout(weldTimer);
   if (drag.before !== undefined) commit(drag.before);
   drag = null; render();
 });
@@ -1080,6 +1084,127 @@ function toggleSeg(ci, ai) {
       b.i = { x: R(a.x + dx * 2 / 3), y: R(a.y + dy * 2 / 3) };
     }
   });
+}
+/* ---------- weld: join two open end points into one ----------
+   J welds from the keyboard. Dragging an end point within WELD_PX screen pixels of another end
+   highlights it; holding there for half a second asks "Weld? Y / N". */
+const WELD_PX = 8, WELD_DWELL = 500;
+let weldAsk = null, weldTimer = 0;   // { a, b } with a = the end that moves, b = the end it lands on
+function isEnd(ci, ni) {
+  const c = G().contours[ci];
+  return !!c && !c.closed && c.nodes.length >= 2 && (ni === 0 || ni === c.nodes.length - 1);
+}
+function canWeld(a, b) {
+  if (!isEnd(a.ci, a.ni) || !isEnd(b.ci, b.ni)) return false;
+  if (a.ci === b.ci) return a.ni !== b.ni && G().contours[a.ci].nodes.length >= 3;
+  return true;
+}
+// Merge end a into end b at world point `at`. Same contour: it closes with no extra segment.
+// Two contours: they become one, joined at the merged point. Returns the merged point's key.
+function weld(a, b, at) {
+  const g = G();
+  if (a.ci === b.ci) {
+    const c = g.contours[a.ci];
+    if (a.ni === 0) reverseContour(c);                       // moving end last, the other end first
+    const last = c.nodes[c.nodes.length - 1], first = c.nodes[0];
+    moveNodeTo(last, at.x, at.y); moveNodeTo(first, at.x, at.y);
+    first.i = last.i; c.nodes.pop(); c.closed = true;
+    first.s = isAligned(first); delete first.sym;
+    return key(a.ci, 0);
+  }
+  const ca = g.contours[a.ci], cb = g.contours[b.ci];
+  if (a.ni === 0) reverseContour(ca);                        // a becomes the last point of ca
+  if (b.ni !== 0) reverseContour(cb);                        // b becomes the first point of cb
+  const A = ca.nodes[ca.nodes.length - 1], B = cb.nodes[0];
+  moveNodeTo(A, at.x, at.y); moveNodeTo(B, at.x, at.y);
+  const m = { x: at.x, y: at.y, i: A.i, o: B.o, s: false };
+  m.s = isAligned(m); if (B.lo) m.lo = true;
+  const mi = ca.nodes.length - 1;
+  ca.nodes = [...ca.nodes.slice(0, -1), m, ...cb.nodes.slice(1)]; ca.closed = false;
+  g.contours.splice(b.ci, 1);
+  return key(b.ci < a.ci ? a.ci - 1 : a.ci, mi);
+}
+function doWeld(a, b, at) {
+  sel = new Set([weld(a, b, at)]);
+  active = null; focusCirc = null; focusSeg = null; focusFil = null; hoverSeg = null;
+}
+function joinKey(shift) {
+  const keys = [...sel].map(k => { const [ci, ni] = unkey(k); return { ci, ni }; });
+  let a = null, b = null, at = null;
+  if (keys.length === 2 && canWeld(keys[0], keys[1])) {
+    [a, b] = keys;
+    const A = nodeOf(key(a.ci, a.ni)), B = nodeOf(key(b.ci, b.ni));
+    at = shift ? { x: A.x, y: A.y } : { x: R((A.x + B.x) / 2), y: R((A.y + B.y) / 2) };
+  } else {
+    const h = hoverS && hit(hoverS.sx, hoverS.sy);
+    const one = h && h.type === 'anchor' ? { ci: h.ci, ni: h.ni } : keys.length === 1 ? keys[0] : null;
+    if (one && isEnd(one.ci, one.ni)) {
+      const L = G().contours[one.ci].nodes.length, other = { ci: one.ci, ni: one.ni === 0 ? L - 1 : 0 };
+      if (canWeld(one, other)) { a = one; b = other; const B = nodeOf(key(b.ci, b.ni)); at = { x: B.x, y: B.y }; }
+    }
+  }
+  if (!a) { flash('J joins end points: hover an open end (it moves onto the other end of its contour), or select two open ends.'); return; }
+  const two = a.ci !== b.ci;
+  edit(() => doWeld(a, b, at));
+  flash(two ? 'Joined the two contours into one.' : 'Joined: the end moved onto the start and the contour is closed.');
+}
+// While dragging a single end point: find an end within range, and ask after the dwell time.
+function updateWeldTarget() {
+  const [k] = drag.orig.keys(), [ci, ni] = unkey(k), me = { ci, ni };
+  let best = null;
+  if (isEnd(ci, ni)) {
+    const p = toScreen(nodeOf(k)); let bd = WELD_PX;
+    G().contours.forEach((c, cj) => {
+      if (c.closed || c.nodes.length < 2) return;
+      for (const nj of [0, c.nodes.length - 1]) {
+        const t = { ci: cj, ni: nj };
+        if ((cj === ci && nj === ni) || !canWeld(me, t)) continue;
+        const q = toScreen(c.nodes[nj]), d = Math.hypot(q.x - p.x, q.y - p.y);
+        if (d <= bd) { bd = d; best = t; }
+      }
+    });
+  }
+  if (best && drag.weld && best.ci === drag.weld.ci && best.ni === drag.weld.ni) return;
+  drag.weld = best; weldAsk = null; clearTimeout(weldTimer);
+  if (best) weldTimer = setTimeout(() => { if (drag && drag.weld === best) { weldAsk = { a: me, b: best }; render(); } }, WELD_DWELL);
+}
+function answerWeld(yes) {
+  const ask = weldAsk; weldAsk = null; clearTimeout(weldTimer);
+  if (!ask) return;
+  if (yes) {
+    const B = G().contours[ask.b.ci]?.nodes[ask.b.ni];
+    if (B && canWeld(ask.a, ask.b)) {
+      const at = { x: B.x, y: B.y };
+      if (drag && drag.kind === 'move') { doWeld(ask.a, ask.b, at); const before = drag.before; drag = null; commit(before); }
+      else edit(() => doWeld(ask.a, ask.b, at));
+      flash('Welded.');
+    }
+  }
+  if (drag) drag.weld = null;
+  render();
+}
+const weldBox = () => { const B = toScreen(G().contours[weldAsk.b.ci].nodes[weldAsk.b.ni]); return { x: B.x + 14, y: B.y - 34, w: 158, h: 24 }; };
+function hitWeldAsk(sx, sy) {
+  if (!weldAsk || !G().contours[weldAsk.b.ci]?.nodes[weldAsk.b.ni]) return null;
+  const b = weldBox();
+  if (sx < b.x || sx > b.x + b.w || sy < b.y || sy > b.y + b.h) return null;
+  return sx >= b.x + 52 && sx < b.x + 104 ? 'yes' : sx >= b.x + 104 ? 'no' : 'box';
+}
+function renderWeld(g) {
+  let s = '';
+  const target = weldAsk ? weldAsk.b : drag && drag.weld;
+  const T = target && g.contours[target.ci]?.nodes[target.ni];
+  if (!T) return '';
+  const p = toScreen(T);
+  s += `<circle class="weldring${weldAsk ? ' ask' : ''}" cx="${R(p.x)}" cy="${R(p.y)}" r="11"/>`;
+  if (weldAsk) {
+    const b = weldBox();
+    s += `<g class="weldask"><rect class="lmbox" x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" rx="3"/>`
+      + `<text class="lmt" x="${b.x + 8}" y="${b.y + 16}">Weld?</text>`
+      + `<rect class="lmrow" x="${b.x + 52}" y="${b.y + 2}" width="50" height="${b.h - 4}"/><text class="lml sm" x="${b.x + 58}" y="${b.y + 16}">Y</text><text class="lmt" x="${b.x + 70}" y="${b.y + 16}">yes</text>`
+      + `<rect class="lmrow" x="${b.x + 104}" y="${b.y + 2}" width="50" height="${b.h - 4}"/><text class="lml eq" x="${b.x + 110}" y="${b.y + 16}">N</text><text class="lmt" x="${b.x + 122}" y="${b.y + 16}">no</text></g>`;
+  }
+  return s;
 }
 function moveNodeTo(n, x, y) {
   const dx = x - n.x, dy = y - n.y; n.x = x; n.y = y;
@@ -1570,6 +1695,11 @@ window.addEventListener('keydown', e => {
   if (!$('#modal').hidden) { if (e.key === 'Escape') $('#modal').hidden = true; return; }
   if (e.target.closest('input,textarea,select')) return;
   if (cornerMode) { if (e.key === 'Escape') finishCorner(false); else if (e.key === 'Enter') finishCorner(true); e.preventDefault(); return; }
+  if (weldAsk) {
+    const kk = e.key.toLowerCase();
+    if (kk === 'y' || kk === 'enter') { e.preventDefault(); answerWeld(true); return; }
+    if (kk === 'n' || kk === 'escape') { e.preventDefault(); answerWeld(false); return; }
+  }
   if (divideMode) {
     e.preventDefault();
     if (/^[1-9]$/.test(e.key)) finishDivide(+e.key); else { divideMode = null; render(); }
@@ -1590,6 +1720,7 @@ window.addEventListener('keydown', e => {
   else if (k === 'f' || k === 'F') { fit(); render(); }
   else if (k === 'g' || k === 'G') setLower(!showLower);
   else if (k === 'n' || k === 'N') setNodes(!showNodes);
+  else if (k === 'j' || k === 'J') joinKey(e.shiftKey);
   else if (k === 'a' || k === 'A') {
     if (!hoverH) { flash('Hover a control point and press A to line it up with the point’s other handle.'); return; }
     const [ci, ni, h] = hoverH.split(':'), err = alignHandle(+ci, +ni, h);

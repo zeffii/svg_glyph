@@ -120,6 +120,9 @@ kbd{font-family:inherit;color:var(--dim);margin-left:1ch}
 #cv .lml{font:12px var(--mono);pointer-events:none} #cv .lml.sm{fill:var(--par)} #cv .lml.eq{fill:var(--eq)}
 #cv .lmt{fill:var(--fg);font:12px var(--mono);pointer-events:none}
 #cv .lms{fill:var(--muted);font:11px var(--mono);pointer-events:none}
+#cv .weldring{fill:none;stroke:var(--cmd);stroke-width:1.5;stroke-dasharray:3 2}
+#cv .weldring.ask{stroke:var(--par);stroke-dasharray:none;stroke-width:2}
+#cv .weldask .lmrow{fill:var(--field)}
 #cv .marq{fill:var(--cyan);fill-opacity:.08;stroke:var(--cyan);stroke-width:1;stroke-dasharray:3 3}
 
 .insp{border-left:1px solid var(--line);overflow:auto;min-height:0}
