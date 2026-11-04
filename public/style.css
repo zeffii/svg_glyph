@@ -71,6 +71,8 @@ kbd{font-family:inherit;color:var(--dim);margin-left:1ch}
 #cv .hd.hot{fill:var(--cyan)}
 #cv .an{fill:var(--board);stroke:var(--fg);stroke-width:1.5}
 #cv .an.sel{fill:var(--magenta);stroke:var(--magenta)}
+#cv .symdot{fill:var(--fg);pointer-events:none}
+#cv .an.sel+.symdot{fill:var(--board)}
 #cv .start{fill:none;stroke:var(--fg);stroke-width:1;opacity:.45}
 #cv .par{stroke:var(--par);stroke-width:3;stroke-linecap:round;opacity:.9}
 #cv .par.near{stroke-dasharray:6 5;stroke-width:2;opacity:.75}

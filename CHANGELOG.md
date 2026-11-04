@@ -2,6 +2,12 @@
 
 Newest first. Each numbered entry is one build; the number shows in the app header next to the commit.
 
+## 015 · 2026-11-04
+
+- **Equal handles:** select points and press **E**, or use the new **Equal** point-type button. Each point's two handles are set in line at their average length, and they stay mirrored when you drag either one. Equal points show a dot inside the point. Alt-drag still breaks a handle free.
+  - The flag is also recognised from path data, so it survives editing the text box.
+  - Splitting a neighbouring segment changes the handle lengths, so it turns Equal back into Smooth for the points on either side.
+
 ## 014 · 2026-11-04
 
 - **N**, or the new **Nodes** checkbox in the toolbar, hides points, handles, chain links, and the fillet and circle markers, so you see just the shapes. Hidden points can't be grabbed by accident, but clicking an outline still selects and moves the contour. The setting is saved with the project.

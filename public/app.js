@@ -116,7 +116,7 @@ function insertAt(ci, ai, t) {
     const p01 = lerp(Q[0], Q[1]), p12 = lerp(Q[1], Q[2]), p23 = lerp(Q[2], Q[3]), p012 = lerp(p01, p12), p123 = lerp(p12, p23), p = lerp(p012, p123);
     a.o = p01; b.i = p23; n = N(p.x, p.y); n.i = p012; n.o = p123; n.s = true;
   }
-  delete a.lo; c.nodes.splice(ai + 1, 0, n); return ai + 1;
+  delete a.lo; delete a.sym; delete b.sym; c.nodes.splice(ai + 1, 0, n); return ai + 1;
 }
 // Divide a segment into n + 1 equal-length parts by inserting n points.
 // Points are inserted last-first; the piece before each cut is the same curve over [0, t], so earlier t values rescale by 1 / t.
@@ -504,6 +504,7 @@ function renderCanvas() {
     const cls = `an${sel.has(key(ci, ni)) ? ' sel' : ''}`;
     if (ni === 0) ans += `<circle class="start" cx="${R(a.x)}" cy="${R(a.y)}" r="8.5"/>`;
     ans += n.s ? `<circle class="${cls}" cx="${R(a.x)}" cy="${R(a.y)}" r="4.5"/>` : `<rect class="${cls}" x="${R(a.x - 4)}" y="${R(a.y - 4)}" width="8" height="8"/>`;
+    if (n.s && n.sym) ans += `<circle class="symdot" cx="${R(a.x)}" cy="${R(a.y)}" r="1.6"/>`;
   }));
   s += `<path class="hl" d="${lines}"/><path class="hl col" d="${linesC}"/><path class="hl par" d="${linesP}"/>${hds}${ans}`;
   if (showNodes) g.contours.forEach((c, ci) => c.nodes.forEach((n, ai) => {
@@ -656,7 +657,7 @@ function renderInspector() {
   $('#sumCorner').textContent = `r ${cornerR}`;
   $('#sumPath').textContent = `${glyphD(g).length} ch`;
   $('#sumList').textContent = `${items().length}`;
-  for (const id of ['#pSharp', '#pSmooth', '#pFree', '#cClose', '#cRev', '#pDel']) $(id).disabled = !sel.size && !(active !== null && ['#cClose', '#cRev'].includes(id));
+  for (const id of ['#pSharp', '#pSmooth', '#pEqual', '#pFree', '#cClose', '#cRev', '#pDel']) $(id).disabled = !sel.size && !(active !== null && ['#cClose', '#cRev'].includes(id));
   const dt = $('#dtext');
   if (document.activeElement !== dt) { dt.value = g.contours.map(contourLine).filter(Boolean).join('\n'); $('#dnote').className = 'note'; $('#dnote').textContent = `Edit to reshape the ${noun()}. M L H V C S Q T Z, absolute or relative.`; }
   hlD();
@@ -1123,11 +1124,13 @@ $('#crad').oninput = e => {
     lastCorner.after = snapshot(); save(); render();
   }
 };
+// Smooth points keep the other handle in line; Equal points (n.sym) also mirror its length.
 function placeHandle(n, h, p, alt) {
-  n[h] = p; if (alt) n.s = false;
+  n[h] = p; if (alt) { n.s = false; delete n.sym; }
   const oh = h === 'i' ? 'o' : 'i';
   if (n.s && n[oh]) {
-    const len = Math.hypot(n[oh].x - n.x, n[oh].y - n.y), dx = n.x - p.x, dy = n.y - p.y, d = Math.hypot(dx, dy) || 1;
+    const dx = n.x - p.x, dy = n.y - p.y, d = Math.hypot(dx, dy) || 1;
+    const len = n.sym ? d : Math.hypot(n[oh].x - n.x, n[oh].y - n.y);
     n[oh] = { x: n.x + dx / d * len, y: n.y + dy / d * len };
   }
 }
@@ -1183,9 +1186,18 @@ function setType(type) {
   edit(() => {
     for (const k of sel) {
       const [ci, ni] = unkey(k), c = G().contours[ci], n = c.nodes[ni];
-      if (type === 'sharp') { n.i = n.o = null; n.s = false; }
-      else if (type === 'free') { if (!n.i && !n.o) autoSmooth(c, ni); n.s = false; }
-      else { if (!n.i || !n.o) autoSmooth(c, ni); else alignHandles(n); n.s = true; }
+      if (type === 'sharp') { n.i = n.o = null; n.s = false; delete n.sym; }
+      else if (type === 'free') { if (!n.i && !n.o) autoSmooth(c, ni); n.s = false; delete n.sym; }
+      else if (type === 'equal') {
+        if (!n.i || !n.o) autoSmooth(c, ni);
+        // Keep the handles' common direction (in → out) and give both the average length.
+        const li = Math.hypot(n.i.x - n.x, n.i.y - n.y), lo = Math.hypot(n.o.x - n.x, n.o.y - n.y);
+        let dx = n.o.x - n.i.x, dy = n.o.y - n.i.y; const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
+        const L = (li + lo) / 2;
+        n.i = { x: R(n.x - dx * L), y: R(n.y - dy * L) }; n.o = { x: R(n.x + dx * L), y: R(n.y + dy * L) };
+        n.s = true; n.sym = true;
+      }
+      else { if (!n.i || !n.o) autoSmooth(c, ni); else alignHandles(n); n.s = true; delete n.sym; }
     }
   });
 }
@@ -1197,6 +1209,7 @@ function nudge(dx, dy) {
 $('#pSharp').onclick = () => setType('sharp');
 $('#pSmooth').onclick = () => setType('smooth');
 $('#pFree').onclick = () => setType('free');
+$('#pEqual').onclick = () => setType('equal');
 $('#pDel').onclick = deleteSelected;
 $('#cClose').onclick = () => edit(() => { for (const ci of targetContours()) { const c = G().contours[ci]; c.closed = !c.closed; if (ci === active) active = null; } });
 $('#cRev').onclick = () => edit(() => {
@@ -1481,6 +1494,7 @@ window.addEventListener('keydown', e => {
   else if (k === 'f' || k === 'F') { fit(); render(); }
   else if (k === 'g' || k === 'G') setLower(!showLower);
   else if (k === 'n' || k === 'N') setNodes(!showNodes);
+  else if (k === 'e' || k === 'E') { if (sel.size) { setType('equal'); flash(`Handles made equal on ${sel.size} point${sel.size > 1 ? 's' : ''}.`); } else flash('Select points, then press E to give their handles equal length.'); }
   else if (k === 'h' || k === 'H') showKeys(true);
   else if (k === 'm' || k === 'M') setMode(mode === 'logo' ? 'glyph' : 'logo');
   else if (k === 'u' || k === 'U') setUlEdit(!ulEdit);

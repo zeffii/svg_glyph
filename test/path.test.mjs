@@ -44,3 +44,12 @@ test('rejects arcs and junk with a readable message', () => {
 test('open contour output has no Z', () => {
   assert.equal(contourD({ closed: false, nodes: parseD('M0 0 L5 5')[0].nodes }), 'M0 0 L5 5');
 });
+
+test('equal-length smooth handles are recognised as symmetric', () => {
+  const [c] = parseD('M0 0 C0 0 40 50 100 50 C160 50 200 0 200 0');
+  assert.equal(c.nodes[1].s, true);
+  assert.equal(c.nodes[1].sym, true);
+  const [d] = parseD('M0 0 C0 0 70 50 100 50 C160 50 200 0 200 0');
+  assert.equal(d.nodes[1].s, true);
+  assert.ok(!d.nodes[1].sym);
+});

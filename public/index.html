@@ -72,7 +72,7 @@
       <div class="bar"><span>Points</span><span class="sum" id="selinfo"></span></div>
       <div class="kv"><span>Position</span><span class="vals"><input type="number" id="nx" step="1" aria-label="X"><input type="number" id="ny" step="1" aria-label="Y"></span></div>
       <div class="kv"><span>Type</span><span class="vals" role="group" aria-label="Point type">
-        <button id="pSharp" title="Remove handles">Sharp</button><button id="pSmooth" title="Aligned handles">Smooth</button><button id="pFree" title="Independent handles">Free</button>
+        <button id="pSharp" title="Remove handles">Sharp</button><button id="pSmooth" title="Aligned handles">Smooth</button><button id="pEqual" title="Aligned handles of equal length (E)">Equal</button><button id="pFree" title="Independent handles">Free</button>
       </span></div>
       <div class="kv"><span>Contour</span><span class="vals">
         <button id="cClose" title="Close or open the contour (C)">Close</button><button id="cRev" title="Reverse direction">Reverse</button><button id="pDel" class="danger" title="Delete selected points (Del)">Del pts</button>
@@ -157,6 +157,7 @@
         <code>Ctrl+C X V</code><span>Copy / cut / paste contours (nothing selected: whole glyph)</span>
         <code>Space-drag</code><span>Pan (or middle mouse)</span>
         <code>Ctrl+wheel</code><span>Zoom; wheel scrolls</span>
+        <code>E</code><span>Equal: give the selected points' handles the same length, mirrored while you drag</span>
         <code>Alt-drag</code><span>Break a smooth handle</span>
         <code>Chain icon</code><span>Click to lock / unlink collinear arms: on a selected point (its two arms), or between a segment’s facing arms</span>
         <code>+ / −</code><span>Arm / disarm the hovered control point; armed points move along with the one you drag (− with nothing hovered disarms all)</span>

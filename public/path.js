@@ -63,7 +63,13 @@ export function parseD(d) {
     pc = npc; pq = npq; cx = x; cy = y;
   }
   const out = cs.filter(k => k.nodes.length >= 2);
-  out.forEach(k => k.nodes.forEach(n => { n.s = isAligned(n); }));
+  out.forEach(k => k.nodes.forEach(n => {
+    n.s = isAligned(n);
+    if (n.s) {
+      const li = Math.hypot(n.i.x - n.x, n.i.y - n.y), lo = Math.hypot(n.o.x - n.x, n.o.y - n.y);
+      if (Math.abs(li - lo) <= Math.max(.15, .005 * Math.max(li, lo))) n.sym = true;
+    }
+  }));
   return out;
 }
 export function isAligned(n) {
