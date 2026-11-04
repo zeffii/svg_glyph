@@ -48,6 +48,7 @@ Every glyph and drawing can have one image to trace over.
 | **Esc** | Finish the contour |
 | **V** | Select tool |
 | **I** over a segment | Insert a point at the cursor; curves keep their shape |
+| **D**, then **1–9** | Divide the hovered segment (or every segment between selected points) with that many evenly spaced points |
 | Double-click a segment | Insert a point (Select tool) |
 | Double-click a point | Toggle sharp / smooth |
 | **B** or right-click a segment | Toggle line ↔ curve. The new curve has handles at ⅓ and ⅔ |

@@ -30,6 +30,7 @@ let cornerR = 40, lastCorner = null, cornerMode = null, hoverF = null, focusSeg 
 let hoverH = null, armed = new Set(), hoverLink = null;
 // Mode: 'glyph' edits font.glyphs (with metrics and the proof line); 'logo' edits font.drawings (free drawings on an artboard).
 let mode = 'glyph', curOther = 0, ulEdit = false, hoverUl = null;
+let divideMode = null;   // { targets: [{ ci, ai }] } while waiting for the D-then-digit count
 const PAR_EXACT = .3 * Math.PI / 180, PAR_NEAR = 3 * Math.PI / 180;
 const lineAngDiff = (a, b) => { let d = ((a - b) % Math.PI + Math.PI) % Math.PI; return Math.min(d, Math.PI - d); };
 function flash(m) { flashMsg = m; clearTimeout(flashT); flashT = setTimeout(() => { flashMsg = ''; requestRender(); }, 3000); requestRender(); }
@@ -116,6 +117,56 @@ function insertAt(ci, ai, t) {
     a.o = p01; b.i = p23; n = N(p.x, p.y); n.i = p012; n.o = p123; n.s = true;
   }
   delete a.lo; c.nodes.splice(ai + 1, 0, n); return ai + 1;
+}
+// Divide a segment into n + 1 equal-length parts by inserting n points.
+// Points are inserted last-first; the piece before each cut is the same curve over [0, t], so earlier t values rescale by 1 / t.
+function divideSegment(ci, ai, n) {
+  const c = G().contours[ci], a = c.nodes[ai], b = c.nodes[(ai + 1) % c.nodes.length], Q = cub(a, b);
+  // Straight segments split linearly, so even fractions are already even lengths.
+  if (!a.o && !b.i) {
+    for (let j = n; j >= 1; j--) insertAt(ci, ai, (j / (n + 1)) / ((j + 1) / (n + 1)));
+    return Array.from({ length: n }, (_, j) => ai + 1 + j);
+  }
+  const M = 256, len = [0];
+  let prev = bz(Q, 0);
+  for (let k = 1; k <= M; k++) { const p = bz(Q, k / M); len.push(len[k - 1] + Math.hypot(p.x - prev.x, p.y - prev.y)); prev = p; }
+  const total = len[M]; if (total < 1e-6) return [];
+  const ts = [];
+  for (let j = 1; j <= n; j++) {
+    const target = total * j / (n + 1);
+    let k = 1; while (k < M && len[k] < target) k++;
+    ts.push((k - 1 + (target - len[k - 1]) / ((len[k] - len[k - 1]) || 1)) / M);
+  }
+  let scale = 1;
+  for (let j = n - 1; j >= 0; j--) { const t = ts[j] / scale; insertAt(ci, ai, t); scale = ts[j]; }
+  return Array.from({ length: n }, (_, j) => ai + 1 + j);
+}
+function startDivide() {
+  const h = hoverS && hit(hoverS.sx, hoverS.sy);
+  let targets = [];
+  if (h && h.type === 'seg') targets = [{ ci: h.ci, ai: h.ni }];
+  else {
+    for (const [ci, nis] of selByContour()) {
+      const c = G().contours[ci];
+      for (const ai of segments(c)) if (nis.includes(ai) && nis.includes((ai + 1) % c.nodes.length)) targets.push({ ci, ai });
+    }
+  }
+  if (!targets.length) { flash('Hover a segment (or select both its points), press D, then 1–9.'); return; }
+  divideMode = { targets }; render();
+}
+function finishDivide(n) {
+  const { targets } = divideMode; divideMode = null;
+  edit(() => {
+    const newSel = new Set();
+    // Highest segment index first in each contour, so inserting doesn't shift the segments still to do.
+    [...targets].sort((p, q) => p.ci - q.ci || q.ai - p.ai).forEach(({ ci, ai }) => {
+      const added = divideSegment(ci, ai, n);
+      for (const k of [...newSel]) { const [kc, kn] = unkey(k); if (kc === ci && kn > ai) { newSel.delete(k); newSel.add(key(kc, kn + added.length)); } }
+      added.forEach(ni => newSel.add(key(ci, ni)));
+    });
+    sel = newSel; focusSeg = null; focusFil = null;
+  });
+  flash(`Divided ${targets.length > 1 ? `${targets.length} segments` : 'the segment'} into ${n + 1} equal parts.`);
 }
 function reverseContour(c) {
   // A segment lock lives on the segment's first node; after reversing, that segment starts at the other end.
@@ -340,6 +391,11 @@ function renderCanvas() {
     const A = toScreen(sg.a), B = toScreen(sg.b);
     s += `<line class="${isRef ? 'refseg' : sg.exact ? 'par' : 'par near'}" x1="${R(A.x)}" y1="${R(A.y)}" x2="${R(B.x)}" y2="${R(B.y)}"/>`;
   }
+  if (divideMode) for (const t of divideMode.targets) {
+    const c = g.contours[t.ci]; if (!c) continue;
+    const Q = cub(c.nodes[t.ai], c.nodes[(t.ai + 1) % c.nodes.length]), p = [0, 1, 2, 3].map(i => toScreen(Q[i]));
+    s += `<path class="divseg" d="M${R(p[0].x)} ${R(p[0].y)}C${R(p[1].x)} ${R(p[1].y)} ${R(p[2].x)} ${R(p[2].y)} ${R(p[3].x)} ${R(p[3].y)}"/>`;
+  }
   const hc = hoverSeg && g.contours[hoverSeg.ci];
   if (hc && hc.nodes.length > 1 && segments(hc).includes(hoverSeg.ai)) {
     const a = hc.nodes[hoverSeg.ai], b = hc.nodes[(hoverSeg.ai + 1) % hc.nodes.length];
@@ -419,6 +475,7 @@ function renderCanvas() {
   $('#ovl').innerHTML = s;
   $('#zoomlbl').textContent = `${Math.round(k * 100)}%`;
   $('#hint').innerHTML = flashMsg ? `<b>${esc(flashMsg)}</b>`
+    : divideMode ? `<b>Divide</b> · press 1–9 for how many points to add (${divideMode.targets.length} segment${divideMode.targets.length > 1 ? 's' : ''}), Esc to cancel`
     : ulEdit ? '<b>Underlay</b> · drag the image to move it, drag ⊕ to move the basepoint (or double-click the image), drag ○ to rotate and □ to scale around the basepoint; Shift snaps rotation to 15°, U or Esc to finish'
     : cornerMode ? `<b>${cornerMode.type === 'fillet' ? 'Fillet' : 'Chamfer'}</b> · move away from the corner to set the ${cornerMode.type === 'fillet' ? 'radius' : 'cut'}, click or Enter to apply, Esc or right-click to cancel`
     : refSeg ? '<b>Reference line set</b> · hover another line and press L to make it parallel, Esc to cancel'
@@ -608,7 +665,7 @@ function zoomAt(sx, sy, f) {
   const w = toWorld(sx, sy); view.k = Math.min(40, Math.max(.05, view.k * f));
   view.tx = sx - w.x * view.k; view.ty = sy - w.y * view.k;
 }
-function selectGlyph(gi) { if (gi === cur || gi < 0 || gi >= items().length) return; ulEdit = false; if (cornerMode) finishCorner(true); cur = gi; sel.clear(); active = null; refSeg = null; hoverSeg = null; focusSeg = null; focusFil = null; armed.clear(); fit(); render(); }
+function selectGlyph(gi) { if (gi === cur || gi < 0 || gi >= items().length) return; ulEdit = false; divideMode = null; if (cornerMode) finishCorner(true); cur = gi; sel.clear(); active = null; refSeg = null; hoverSeg = null; focusSeg = null; focusFil = null; armed.clear(); fit(); render(); }
 
 /* ---------- canvas interaction ---------- */
 function local(e) { const r = cv.getBoundingClientRect(); return { sx: e.clientX - r.left, sy: e.clientY - r.top }; }
@@ -1256,6 +1313,11 @@ window.addEventListener('keydown', e => {
   if (!$('#modal').hidden) { if (e.key === 'Escape') $('#modal').hidden = true; return; }
   if (e.target.closest('input,textarea,select')) return;
   if (cornerMode) { if (e.key === 'Escape') finishCorner(false); else if (e.key === 'Enter') finishCorner(true); e.preventDefault(); return; }
+  if (divideMode) {
+    e.preventDefault();
+    if (/^[1-9]$/.test(e.key)) finishDivide(+e.key); else { divideMode = null; render(); }
+    return;
+  }
   const mod = e.ctrlKey || e.metaKey, k = e.key;
   if (mod && k.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
   if (mod && k.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
@@ -1283,6 +1345,7 @@ window.addEventListener('keydown', e => {
     if (!h || h.type !== 'seg') { flash('Hover a segment and press I to insert a point there.'); return; }
     edit(() => { const ni = insertAt(h.ci, h.ni, h.t); sel = new Set([key(h.ci, ni)]); focusSeg = null; focusFil = null; });
   }
+  else if (k === 'd' || k === 'D') startDivide();
   else if (k === 'r' || k === 'R') startCorner('fillet');
   else if (k === 'k' || k === 'K') startCorner('chamfer');
   else if (k === 'b' || k === 'B') {

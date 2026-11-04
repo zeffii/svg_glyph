@@ -2,6 +2,10 @@
 
 Newest first. Each numbered entry is one build; the number shows in the app header next to the commit.
 
+## 010 · 2026-11-04
+
+- **Divide:** hover a segment and press **D**, then a digit **1–9** to add that many points, evenly spaced by length. Curves keep their exact shape. With nothing hovered, D divides every segment whose two end points are selected. The target is highlighted while it waits for the digit, any other key cancels, and the new points come out selected.
+
 ## 009 · 2026-11-04
 
 Glyphpath becomes a small SVG drawing tool.

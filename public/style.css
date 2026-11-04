@@ -102,6 +102,7 @@ kbd{font-family:inherit;color:var(--dim);margin-left:1ch}
 #cv .ulbx{stroke:var(--guide);stroke-width:1.5}
 #cv .ulmiss{fill:none;stroke:var(--guide);stroke-width:1;stroke-dasharray:6 4}
 #cv .ullabel{fill:var(--guide);font:12px var(--mono)}
+#cv .divseg{fill:none;stroke:var(--magenta);stroke-width:3;stroke-linecap:round;opacity:.7}
 #cv .marq{fill:var(--cyan);fill-opacity:.08;stroke:var(--cyan);stroke-width:1;stroke-dasharray:3 3}
 
 .insp{border-left:1px solid var(--line);overflow:auto;min-height:0}
