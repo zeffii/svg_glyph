@@ -67,7 +67,7 @@ async function api(req, res, url) {
   if (m) {
     if (req.method !== 'PUT') return send(res, 405, 'Use PUT');
     const name = decodeURIComponent(m[1]);
-    if (!/^[\w.-]+\.svg$/.test(name)) return send(res, 400, 'Export names must look like name.svg');
+    if (!/^[\w.-]+\.(svg|pdf)$/.test(name)) return send(res, 400, 'Export names must look like name.svg or name.pdf');
     await writeAtomic(path.join(exportDir, name), await readBody(req));
     return send(res, 204);
   }

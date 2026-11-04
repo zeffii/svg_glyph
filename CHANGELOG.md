@@ -2,6 +2,14 @@
 
 Newest first. Each numbered entry is one build; the number shows in the app header next to the commit.
 
+## 020 · 2026-11-04
+
+- **PDF export.** File → **Download PDF**, and locally **Save PDF to exports/**, give the same artwork as the SVG export: the proof line in Glyphs mode, or the current drawing at artboard size in Logo mode.
+  - It's exact vector: the cubic curves map one-to-one onto PDF curves.
+  - Filled black with even-odd fill, so counters stay hollow.
+  - 1 unit = 1 point.
+- New `public/pdf.js` (a small dependency-free PDF writer) with 3 tests.
+
 ## 019 · 2026-11-04
 
 - **A** (align) on a hovered control point swings it into line with its point's other handle, keeping its own length. If the point has no other handle, it lines up with the straight segment on the other side, for a smooth curve-to-line join. Nothing is locked, so use Smooth, Equal or the chain icon afterwards to keep it in line.

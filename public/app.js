@@ -1,6 +1,7 @@
 import { R, P, N, contourD, contourTokens, glyphD, parseD, isAligned } from './path.js';
 import { ulToWorld, ulToImage, ulSetBase, ulTransform, ulCorners, ulHit, ulFit, newUnderlay } from './underlay.js';
 import { putImage, imageURL, imageSize } from './images.js';
+import { pdfDocument } from './pdf.js';
 
 const $ = s => document.querySelector(s);
 const SKEY = 'glyphpath.v1';
@@ -1373,6 +1374,12 @@ function svgDrawing(g = G()) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${g.w} ${g.h}" width="${g.w}" height="${g.h}" fill="currentColor" fill-rule="evenodd">\n  <path id="${esc(xmlId(g.id))}" d="${glyphD(g)}"/>\n</svg>`;
 }
 const currentSvg = () => mode === 'logo' ? svgDrawing() : svgDefs();
+// PDF of the same thing the SVG export holds: the drawing at artboard size, or the proof line.
+function currentPdf() {
+  if (mode === 'logo') { const g = G(); return pdfDocument([{ contours: g.contours }], { x: 0, y: 0, w: g.w, h: g.h }, g.id); }
+  const { items } = layout(ptext), used = items.filter(i => i.g);
+  return pdfDocument(used.map(i => ({ contours: i.g.contours, dx: i.x })), bbox(items), ptext);
+}
 function svgFlat() {
   const { items } = layout(ptext), b = bbox(items);
   const paths = items.filter(i => i.g).map(i => `  <path data-glyph="${esc(i.g.id)}" transform="translate(${R(i.x)} 0)" d="${glyphD(i.g)}"/>`).join('\n');
@@ -1461,13 +1468,16 @@ function download(name, text, type) {
 const fileBase = () => ((mode === 'logo' ? G().id : ptext).replace(/[^\w.-]+/g, '_').replace(/^_+|_+$/g, '') || 'logo');
 $('#ioDlJson').onclick = () => download(`${(font.name || 'glyphpath').replace(/[^\w.-]+/g, '_')}.json`, JSON.stringify(font, null, 1), 'application/json');
 $('#ioDlSvg').onclick = () => download(`${fileBase()}.svg`, currentSvg(), 'image/svg+xml');
-$('#ioSaveSvg').onclick = async () => {
-  const name = `${fileBase()}.svg`;
+async function saveExport(ext, type, body) {
+  const name = `${fileBase()}.${ext}`;
   try {
-    const r = await fetch(`api/export/${encodeURIComponent(name)}`, { method: 'PUT', headers: { 'content-type': 'image/svg+xml' }, body: currentSvg() });
+    const r = await fetch(`api/export/${encodeURIComponent(name)}`, { method: 'PUT', headers: { 'content-type': type }, body });
     ioMsg(r.ok ? `Saved exports/${name} in the project folder.` : `Saving failed (${r.status}).`, !r.ok);
   } catch (e) { ioMsg('The server isn’t reachable.', true); }
-};
+}
+$('#ioSaveSvg').onclick = () => saveExport('svg', 'image/svg+xml', currentSvg());
+$('#ioSavePdf').onclick = () => saveExport('pdf', 'application/pdf', currentPdf());
+$('#ioDlPdf').onclick = () => download(`${fileBase()}.pdf`, currentPdf(), 'application/pdf');
 $('#iofile').onchange = e => {
   const f = e.target.files[0]; if (!f) return;
   const r = new FileReader(); r.onload = () => { io.value = r.result; loadText(r.result); e.target.value = ''; }; r.readAsText(f);
@@ -1657,6 +1667,6 @@ cv.innerHTML = '<image id="ulimg" preserveAspectRatio="none" style="display:none
 let fitted = false;
 await load();
 setSaveState(serverOk ? 'saved' : 'saved in browser');
-$('#ioSaveSvg').hidden = !serverOk;
+$('#ioSaveSvg').hidden = $('#ioSavePdf').hidden = !serverOk;
 new ResizeObserver(() => { if (!fitted && cv.clientWidth) { fit(); fitted = true; } render(); }).observe(cv);
 render();

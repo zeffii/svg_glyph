@@ -107,6 +107,7 @@ Every glyph and drawing can have one image to trace over.
 ## Proof and export
 
 - **Proof** sets glyph IDs as text. Use `/name` for longer IDs (`N/A.altVA`), and adjust **Tracking** and **Space**. Click a letter in the proof to open it.
+- **Download PDF** (File) gives the same artwork as a vector PDF. In Glyphs mode that's the proof line; in Logo mode it's the drawing at artboard size. Curves are exact, it's filled black with even-odd fill, and 1 unit = 1 point. Locally, **Save PDF to exports/** writes it next to the SVG.
 - **Copy SVG** copies the proof line as `<defs>` paths placed with `<use>`.
 - **File** has:
   - Project JSON, SVG with defs or flat.

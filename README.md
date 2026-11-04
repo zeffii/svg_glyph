@@ -21,7 +21,7 @@ Both folders are created on first save and are git-ignored.
 
 ## Files
 
-- `serve.mjs`: static server plus a small JSON API (`GET/PUT /api/project`, `PUT /api/export/<name>.svg`).
+- `serve.mjs`: static server plus a small JSON API (`GET/PUT /api/project`, `PUT /api/export/<name>.svg` or `.pdf`).
 - `public/index.html`, `public/style.css`: the page.
 - `public/app.js`: the editor.
 - `public/path.js`: path-data model, parser and writer (shared with the tests).
