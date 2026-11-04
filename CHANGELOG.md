@@ -2,6 +2,10 @@
 
 Newest first. Each numbered entry is one build; the number shows in the app header next to the commit.
 
+## 017 · 2026-11-04
+
+- Equal handle pairs are now orange (coral, `--eq`) instead of gold, so they no longer blend with the metric guides and underlay handles.
+
 ## 016 · 2026-11-04
 
 - Equal handle pairs now show the equal-length mark: both arms are drawn in gold with a tick across the middle of each, and the handle ends are gold. Gold takes priority over the green in-line colouring for those arms.
