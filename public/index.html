@@ -53,7 +53,7 @@
   </section>
 
   <aside class="insp">
-    <div class="sec">
+    <div class="sec" data-fold="glyph">
       <div class="bar"><span id="itemTitle">Glyph</span><span class="sum" id="sumGlyph"></span></div>
       <label class="kv"><span>ID</span><span class="vals"><input type="text" id="gid" spellcheck="false"></span></label>
       <label class="kv" id="rowAdv"><span>Advance</span><span class="vals"><input type="number" id="gadv" min="0" step="10"></span></label>
@@ -68,7 +68,7 @@
       </div>
     </div>
 
-    <div class="sec">
+    <div class="sec" data-fold="points">
       <div class="bar"><span>Points</span><span class="sum" id="selinfo"></span></div>
       <div class="kv"><span>Position</span><span class="vals"><input type="number" id="nx" step="1" aria-label="X"><input type="number" id="ny" step="1" aria-label="Y"></span></div>
       <div class="kv"><span>Type</span><span class="vals" role="group" aria-label="Point type">
@@ -79,7 +79,7 @@
       </span></div>
     </div>
 
-    <div class="sec">
+    <div class="sec" data-fold="corners">
       <div class="bar"><span>Corners</span><span class="sum" id="sumCorner"></span></div>
       <div class="kv"><span>Radius</span><span class="vals nowrap">
         <input type="number" id="crad" min="0" step="5" value="40" aria-label="Radius">
@@ -88,7 +88,7 @@
       <div class="note" id="cnote">Select sharp corners between two straight lines.</div>
     </div>
 
-    <div class="sec">
+    <div class="sec" data-fold="underlay">
       <div class="bar"><span>Underlay</span><span class="sum" id="sumUl"></span></div>
       <div class="btns">
         <button id="ulImport" title="Pick an image to trace over (or drop / paste one on the board)">Import…</button><button id="ulEdit" title="Move, rotate and scale the image (U)">Place<kbd>U</kbd></button><button id="ulFit" title="Reset: upright, centred and fitted">Fit</button><button id="ulRemove" class="danger">Remove</button>
@@ -101,15 +101,15 @@
       <div class="kv"><span>Scale</span><span class="vals"><input type="number" id="ulS" step="0.01" min="0.001" aria-label="Scale"></span></div>
     </div>
 
-    <div class="sec">
+    <div class="sec" data-fold="path">
       <div class="bar"><span>Path data</span><span class="barr"><span class="sum" id="sumPath"></span><button id="bCopyD" class="barbtn">Copy</button></span></div>
       <div class="pad"><div class="dwrap"><pre id="dhl" aria-hidden="true"></pre><textarea id="dtext" spellcheck="false" aria-label="Path data for this glyph"></textarea></div></div>
       <div class="btns"><button id="bCopyDPlain" title="Copy the path data on one line, without the // comments">Copy without comments</button></div>
       <div class="note" id="dnote">Edit to reshape the glyph. M L H V C S Q T Z, absolute or relative.</div>
     </div>
 
-    <div class="sec" id="secMetrics">
-      <div class="bar"><span>Metrics</span><span class="sum">em 1000</span></div>
+    <div class="sec" id="secMetrics" data-fold="metrics">
+      <div class="bar"><span>Metrics</span><span class="sum" id="sumMetrics">em 1000</span></div>
       <label class="kv"><span>Cap</span><span class="vals"><input type="number" id="mCap"></span></label>
       <label class="kv"><span>x-height</span><span class="vals"><input type="number" id="mXh"></span></label>
       <label class="kv"><span>Baseline</span><span class="vals"><input type="number" id="mBase"></span></label>

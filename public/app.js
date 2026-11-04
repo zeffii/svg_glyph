@@ -656,9 +656,18 @@ function renderInspector() {
   $('#nx').disabled = $('#ny').disabled = !one;
   setVal('#nx', one ? R(one.x) : ''); setVal('#ny', one ? R(one.y) : '');
   const nc = new Set([...sel].map(k => unkey(k)[0])).size;
-  $('#selinfo').textContent = sel.size ? `${sel.size} sel · ${nc} ctr` : 'none sel';
+  // Folded sections show a fuller read-only summary in their header; open ones keep it short.
+  const folded = name => document.querySelector(`.insp .sec[data-fold="${name}"]`)?.classList.contains('folded');
+  const ptype = n => !n.i && !n.o ? 'sharp' : !n.s ? 'free' : n.sym ? 'equal' : 'smooth';
+  $('#selinfo').textContent = !sel.size ? 'none sel'
+    : folded('points') && one ? `1 sel · ${R(one.x)}, ${R(one.y)} · ${ptype(one)}`
+    : `${sel.size} sel · ${nc} ctr`;
+  const M2 = font.metrics;
+  $('#sumMetrics').textContent = folded('metrics') ? `cap ${M2.cap} · x ${M2.xh} · base ${M2.base} · desc ${M2.desc}` : 'em 1000';
   const pts = g.contours.reduce((n, c) => n + c.nodes.length, 0);
-  $('#sumGlyph').textContent = `${g.id} · ${g.contours.length} ctr · ${pts} pts`;
+  $('#sumGlyph').textContent = folded('glyph')
+    ? `${g.id} · ${mode === 'logo' ? `${g.w} × ${g.h}` : `adv ${g.adv}`} · ${g.contours.length} ctr ${pts} pts`
+    : `${g.id} · ${g.contours.length} ctr · ${pts} pts`;
   $('#sumCorner').textContent = `r ${cornerR}`;
   $('#sumPath').textContent = `${glyphD(g).length} ch`;
   $('#sumList').textContent = `${items().length}`;
@@ -669,7 +678,9 @@ function renderInspector() {
 }
 function renderUnderlayPanel(g) {
   const ul = g.ul;
-  $('#sumUl').textContent = ul ? `${ul.name} · ${Math.round(ul.op * 100)}%` : 'none';
+  const ulFolded = document.querySelector('.insp .sec[data-fold="underlay"]')?.classList.contains('folded');
+  $('#sumUl').textContent = !ul ? 'none'
+    : `${ul.name} · ${Math.round(ul.op * 100)}%${ulFolded ? `${ul.inv ? ' · inverted' : ''}${ul.vis === false ? ' · hidden' : ''}` : ''}`;
   for (const id of ['#ulEdit', '#ulFit', '#ulRemove', '#ulOp', '#ulVis', '#ulInv', '#ulX', '#ulY', '#ulRot', '#ulS']) $(id).disabled = !ul;
   $('#ulEdit').classList.toggle('on', ulEdit);
   setVal('#ulOp', ul ? Math.round(ul.op * 100) : 50); $('#ulOpV').textContent = ul ? `${Math.round(ul.op * 100)}%` : '';
@@ -1581,6 +1592,34 @@ document.addEventListener('paste', e => {
 });
 $('#bCopyG').onclick = () => copySel(false);
 $('#bPasteG').onclick = pasteClip;
+
+/* ---------- collapsible inspector sections ----------
+   Click a header strip to fold or unfold its section; Alt-click keeps only that one open.
+   Which sections are folded is a per-browser preference. */
+const FOLD_KEY = 'glyphpath.folds';
+function loadFolds() { try { return new Set(JSON.parse(localStorage.getItem(FOLD_KEY) || '[]')); } catch (e) { return new Set(); } }
+function saveFolds() {
+  const f = [...document.querySelectorAll('.insp .sec.folded')].map(s => s.dataset.fold);
+  try { localStorage.setItem(FOLD_KEY, JSON.stringify(f)); } catch (e) {}
+}
+function setFold(sec, on) {
+  sec.classList.toggle('folded', on);
+  sec.querySelector('.bar').setAttribute('aria-expanded', String(!on));
+}
+const foldSecs = [...document.querySelectorAll('.insp .sec[data-fold]')];
+const initialFolds = loadFolds();
+for (const sec of foldSecs) {
+  const bar = sec.querySelector('.bar');
+  bar.tabIndex = 0; bar.setAttribute('role', 'button');
+  setFold(sec, initialFolds.has(sec.dataset.fold));
+  const toggle = e => {
+    if (e.altKey) foldSecs.forEach(o => setFold(o, o !== sec));
+    else setFold(sec, !sec.classList.contains('folded'));
+    saveFolds(); renderInspector();
+  };
+  bar.addEventListener('click', e => { if (!e.target.closest('button,input')) toggle(e); });
+  bar.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); toggle(e); } });
+}
 
 // Mouse clicks shouldn't leave buttons focused: it shows a focus ring and swallows shortcut keys.
 document.addEventListener('click', e => { const b = e.target.closest('button'); if (b && e.detail > 0) b.blur(); });

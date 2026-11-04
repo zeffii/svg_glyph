@@ -82,6 +82,17 @@ Every glyph and drawing can have one image to trace over.
 - **N**, or the **Nodes** checkbox, hides points, handles, chain links, and the fillet and circle markers, so you see just the shapes. Hidden points can't be grabbed, but clicking an outline still selects and moves the contour.
 - **Metrics:** cap height, x-height, baseline and descender. **G** hides the baseline and descender guides.
 
+## Panels
+
+- Click a header strip on the right to fold or unfold that section. Alt-click keeps only that section open. Your folds are remembered in this browser.
+- A folded section's header shows a fuller read-only summary:
+  - Glyph: ID, advance and counts.
+  - Points: position and type of the selected point.
+  - Underlay: file, opacity and invert.
+  - Metrics: all four values.
+
+  Unfold a section to edit.
+
 ## Path data
 
 - The box shows one contour per line. Circles and ellipses get a comment such as `// circle  c 480,470  r 230`.

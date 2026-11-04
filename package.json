@@ -1,6 +1,6 @@
 {
   "name": "glyphpath",
-  "version": "0.1.17",
+  "version": "0.1.18",
   "description": "Small SVG drawing and glyph editor, served locally with Node.js",
   "private": true,
   "type": "module",

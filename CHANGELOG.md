@@ -2,6 +2,16 @@
 
 Newest first. Each numbered entry is one build; the number shows in the app header next to the commit.
 
+## 018 · 2026-11-04
+
+- **Foldable inspector sections.** Click a header strip to fold or unfold its section (▾ / ▸), or Alt-click to keep only that one open. Folds are remembered in this browser. Headers also work with Enter and Space from the keyboard.
+- A folded header shows a fuller read-only summary:
+  - Glyph: ID · advance (or artboard size) · counts.
+  - Points: position and type of a single selected point.
+  - Underlay: file · opacity · inverted / hidden.
+  - Metrics: cap · x-height · base · desc.
+- Buttons on a header (Copy) still work without toggling the fold.
+
 ## 017 · 2026-11-04
 
 - Equal handle pairs are now orange (coral, `--eq`) instead of gold, so they no longer blend with the metric guides and underlay handles.

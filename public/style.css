@@ -182,3 +182,11 @@ input[type=range]{accent-color:var(--muted);width:14ch;margin:0}
 .stage.drop{outline:2px dashed var(--guide);outline-offset:-6px}
 .top,.glyphs,.bar,.kv>span:first-child,.hint,.btns,label{user-select:none;-webkit-user-select:none}
 .kv .vals>button{padding:1px 5px}
+.insp .sec[data-fold]>.bar{cursor:pointer}
+.insp .sec[data-fold]>.bar>span:first-child::before{content:"\25BE";color:var(--muted);display:inline-block;width:1.5ch}
+.insp .sec.folded>.bar>span:first-child::before{content:"\25B8"}
+.insp .sec.folded{padding-bottom:2px}
+.insp .sec.folded>:not(.bar){display:none!important}
+.insp .sec.folded>.bar{margin-bottom:0}
+.insp .sec[data-fold]>.bar:hover{background:var(--field)}
+.bar>span:first-child{white-space:nowrap;flex-shrink:0}
