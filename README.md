@@ -15,7 +15,7 @@ No dependencies; Node 18 or newer.
 ## Where things are saved
 
 - `data/project.json`: the project. It autosaves on every edit. The browser keeps a copy too, as a fallback if the server is down.
-- `exports/*.svg`: written by **Export / Import → Save SVG to exports/**.
+- `exports/*.svg`: written by **File → Save SVG to exports/**.
 
 Both folders are created on first save and are git-ignored.
 
@@ -31,4 +31,4 @@ Both folders are created on first save and are git-ignored.
 
 `.github/workflows/pages.yml` publishes `public/` on every push to `master` (tests run first). Turn it on once in the repo: Settings → Pages → Source: **GitHub Actions**.
 
-On Pages there is no server, so the project is kept in the browser's storage. Use Export / Import → Download project JSON to back it up, and the Save SVG to exports/ button is hidden.
+On Pages there is no server, so the project is kept in the browser's storage. Use File → Download project JSON to back it up, and the Save SVG to exports/ button is hidden.

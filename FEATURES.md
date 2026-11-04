@@ -79,6 +79,7 @@ Every glyph and drawing can have one image to trace over.
 - **Control arms** turn green when they line up with an adjacent arm. Solid green means the same infinite line; dashed green means parallel but offset.
 - **Chain icon:** click it to lock collinear arms, on a point (its two arms) or across a segment (the facing arms stay on the line through its points). Click again to unlink.
 - **Arming:** hover a control point and press **+** to arm it. Armed points move along with the one you drag. **−** disarms.
+- **N**, or the **Nodes** checkbox, hides points, handles, chain links, and the fillet and circle markers, so you see just the shapes. Hidden points can't be grabbed, but clicking an outline still selects and moves the contour.
 - **Metrics:** cap height, x-height, baseline and descender. **G** hides the baseline and descender guides.
 
 ## Path data
@@ -95,7 +96,7 @@ Every glyph and drawing can have one image to trace over.
 
 - **Proof** sets glyph IDs as text. Use `/name` for longer IDs (`N/A.altVA`), and adjust **Tracking** and **Space**. Click a letter in the proof to open it.
 - **Copy SVG** copies the proof line as `<defs>` paths placed with `<use>`.
-- **Export / Import** has:
+- **File** has:
   - Project JSON, SVG with defs or flat.
   - Download buttons.
   - Load from text or a file. Importing SVG turns each `<path id>` into a glyph.

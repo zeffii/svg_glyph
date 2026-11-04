@@ -2,6 +2,11 @@
 
 Newest first. Each numbered entry is one build; the number shows in the app header next to the commit.
 
+## 014 · 2026-11-04
+
+- **N**, or the new **Nodes** checkbox in the toolbar, hides points, handles, chain links, and the fillet and circle markers, so you see just the shapes. Hidden points can't be grabbed by accident, but clicking an outline still selects and moves the contour. The setting is saved with the project.
+- To keep the toolbar on one line: Export / Import is now **File**, the checkboxes read Parallel and Base, and the grid field is narrower.
+
 ## 013 · 2026-11-04
 
 - **Path data box marks the selection.** Each contour line holding selected points gets a pink bar in the margin, and the command that ends at each selected point (`M…`, `L…` or `C…`) is outlined in the same pink as selected points on the board. It updates live while you select and drag. While you're typing in the box it shows plain highlighting instead.

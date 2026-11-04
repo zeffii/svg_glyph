@@ -34,7 +34,7 @@ let divideMode = null;   // { targets: [{ ci, ai }] } while waiting for the D-th
 const PAR_EXACT = .3 * Math.PI / 180, PAR_NEAR = 3 * Math.PI / 180;
 const lineAngDiff = (a, b) => { let d = ((a - b) % Math.PI + Math.PI) % Math.PI; return Math.min(d, Math.PI - d); };
 function flash(m) { flashMsg = m; clearTimeout(flashT); flashT = setTimeout(() => { flashMsg = ''; requestRender(); }, 3000); requestRender(); }
-let snapOn = true, gridSize = 10, ptext = 'NOVA';
+let snapOn = true, gridSize = 10, ptext = 'NOVA', showNodes = true;
 const undoS = [], redoS = [];
 const items = () => mode === 'logo' ? font.drawings : font.glyphs;
 const G = () => items()[cur];
@@ -50,10 +50,10 @@ const nodeOf = k => { const [ci, ni] = unkey(k); return G().contours[ci]?.nodes[
 const sn = v => snapOn ? Math.round(v / gridSize) * gridSize : R(v);
 const snapshot = () => JSON.stringify(font);
 
-const stateOf = () => ({ font, ptext, snapOn, gridSize, showLower, mode });
+const stateOf = () => ({ font, ptext, snapOn, gridSize, showLower, mode, showNodes });
 function applyState(s) {
   if (!(s && s.font && Array.isArray(s.font.glyphs) && s.font.glyphs.length)) return false;
-  font = s.font; ptext = s.ptext ?? ptext; snapOn = s.snapOn ?? true; gridSize = s.gridSize || 10; showLower = s.showLower ?? true; mode = s.mode === 'logo' ? 'logo' : 'glyph'; ensureDrawings(font); return true;
+  font = s.font; ptext = s.ptext ?? ptext; snapOn = s.snapOn ?? true; gridSize = s.gridSize || 10; showLower = s.showLower ?? true; mode = s.mode === 'logo' ? 'logo' : 'glyph'; showNodes = s.showNodes ?? true; ensureDrawings(font); return true;
 }
 // With serve.mjs the project lives on disk; on static hosting (GitHub Pages) there is no API and the browser keeps it.
 let serverOk = false;
@@ -349,13 +349,13 @@ function circHandles(e) {
   return hs;
 }
 function hit(sx, sy) {
-  const g = G(), near = p => { const s = toScreen(p); return Math.hypot(s.x - sx, s.y - sy) <= 7; };
+  const g = G(), near = p => { const s = toScreen(p); return showNodes && Math.hypot(s.x - sx, s.y - sy) <= 7; };
   const fe = focusCirc !== null && ellipseInfo(g.contours[focusCirc]);
   if (fe) {
     if (near(fe.C)) return { type: 'ccentre', ci: focusCirc };
     for (const hh of circHandles(fe)) if (near(hh.p)) return { type: 'crad', ci: focusCirc, axis: hh.axis };
   }
-  for (const Lk of linkSpots(g)) if (Math.hypot(Lk.x - sx, Lk.y - sy) <= 10) return { type: 'link', Lk };
+  if (showNodes) for (const Lk of linkSpots(g)) if (Math.hypot(Lk.x - sx, Lk.y - sy) <= 10) return { type: 'link', Lk };
   for (let ci = g.contours.length - 1; ci >= 0; ci--) {
     const c = g.contours[ci];
     for (let ai = 0; ai < c.nodes.length; ai++) if (c.nodes[ai].o) { const f = filletInfo(c, ai); if (f && near(f.C)) return { type: 'fcenter', ci, ai }; }
@@ -492,7 +492,7 @@ function renderCanvas() {
     });
   });
   let lines = '', linesC = '', linesP = '', hds = '', ans = '';
-  g.contours.forEach((c, ci) => c.nodes.forEach((n, ni) => {
+  if (showNodes) g.contours.forEach((c, ci) => c.nodes.forEach((n, ni) => {
     const a = toScreen(n);
     for (const h of ['i', 'o']) if (n[h]) {
       const b = toScreen(n[h]);
@@ -506,7 +506,7 @@ function renderCanvas() {
     ans += n.s ? `<circle class="${cls}" cx="${R(a.x)}" cy="${R(a.y)}" r="4.5"/>` : `<rect class="${cls}" x="${R(a.x - 4)}" y="${R(a.y - 4)}" width="8" height="8"/>`;
   }));
   s += `<path class="hl" d="${lines}"/><path class="hl col" d="${linesC}"/><path class="hl par" d="${linesP}"/>${hds}${ans}`;
-  g.contours.forEach((c, ci) => c.nodes.forEach((n, ai) => {
+  if (showNodes) g.contours.forEach((c, ci) => c.nodes.forEach((n, ai) => {
     if (!n.o) return;
     const f = filletInfo(c, ai); if (!f) return;
     const Cs = toScreen(f.C), As = toScreen(c.nodes[ai]), Bs = toScreen(c.nodes[f.bi]);
@@ -520,7 +520,7 @@ function renderCanvas() {
     s += `<circle class="fcd" cx="${R(Cs.x)}" cy="${R(Cs.y)}" r="7"/><path class="fc" d="M${R(Cs.x - 4)} ${R(Cs.y)}h8M${R(Cs.x)} ${R(Cs.y - 4)}v8"/>`;
     if (hot) s += `<text class="flabel" x="${R(Cs.x + 12)}" y="${R(Cs.y - 10)}">r ${R(f.r)}</text>`;
   }));
-  for (const Lk of linkSpots(g)) {
+  if (showNodes) for (const Lk of linkSpots(g)) {
     const hot = hoverLink && hoverLink.kind === Lk.kind && hoverLink.ci === Lk.ci && (Lk.kind === 'node' ? hoverLink.ni === Lk.ni : hoverLink.ai === Lk.ai);
     const links = Lk.locked
       ? '<rect x="-8.5" y="-3.5" width="10" height="7" rx="3.5"/><rect x="-1.5" y="-3.5" width="10" height="7" rx="3.5"/>'
@@ -531,7 +531,7 @@ function renderCanvas() {
     const a = toScreen(cornerMode.ref), b = toScreen(hover);
     s += `<line class="cguide" x1="${R(a.x)}" y1="${R(a.y)}" x2="${R(b.x)}" y2="${R(b.y)}"/><text class="clabel" x="${R(b.x + 12)}" y="${R(b.y - 12)}">${cornerMode.type === 'fillet' ? 'radius' : 'cut'} ${cornerMode.r}</text>`;
   }
-  const fe = focusCirc !== null && ellipseInfo(g.contours[focusCirc]);
+  const fe = showNodes && focusCirc !== null && ellipseInfo(g.contours[focusCirc]);
   if (fe) {
     const c = g.contours[focusCirc], Cs = toScreen(fe.C);
     const segPath = c.nodes.map((n, k) => { const m = c.nodes[(k + 1) % 4], q = [n.o, m.i, m].map(toScreen); return `C${q.map(p => `${R(p.x)} ${R(p.y)}`).join(' ')}`; }).join('');
@@ -743,7 +743,7 @@ function render() {
   $('#lowerLbl').hidden = logo; $('#bCopyDrawSvg').hidden = !logo;
   $('#listTitle').textContent = logo ? 'Drawings' : 'Glyph list'; $('#itemTitle').textContent = logo ? 'Drawing' : 'Glyph';
   $('#bUndo').disabled = !undoS.length; $('#bRedo').disabled = !redoS.length;
-  $('#snap').checked = snapOn; setVal('#grid', gridSize); $('#lowerOn').checked = showLower;
+  $('#snap').checked = snapOn; setVal('#grid', gridSize); $('#lowerOn').checked = showLower; $('#nodesOn').checked = showNodes;
 }
 
 /* ---------- view ---------- */
@@ -1447,6 +1447,8 @@ $('#snap').onchange = e => { snapOn = e.target.checked; save(); };
 $('#parOn').onchange = e => { parOn = e.target.checked; render(); };
 function setLower(on) { showLower = on; save(); render(); }
 $('#lowerOn').onchange = e => setLower(e.target.checked);
+function setNodes(on) { showNodes = on; save(); render(); flash(on ? 'Nodes and handles shown.' : 'Nodes and handles hidden (N to show). Outlines can still be clicked to select and move.'); }
+$('#nodesOn').onchange = e => setNodes(e.target.checked);
 $('#grid').onchange = e => { const v = parseFloat(e.target.value); if (v > 0) { gridSize = v; save(); render(); } };
 
 const keysDlg = $('#keysdlg');
@@ -1478,6 +1480,7 @@ window.addEventListener('keydown', e => {
   else if (k === 'o' || k === 'O') setTool('circle');
   else if (k === 'f' || k === 'F') { fit(); render(); }
   else if (k === 'g' || k === 'G') setLower(!showLower);
+  else if (k === 'n' || k === 'N') setNodes(!showNodes);
   else if (k === 'h' || k === 'H') showKeys(true);
   else if (k === 'm' || k === 'M') setMode(mode === 'logo' ? 'glyph' : 'logo');
   else if (k === 'u' || k === 'U') setUlEdit(!ulEdit);

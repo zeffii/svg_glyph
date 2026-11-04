@@ -21,8 +21,9 @@
   </div>
   <div class="group">
     <label><input type="checkbox" id="snap" checked> Snap</label>
-    <label title="When you click or move a line, highlight lines parallel to it (solid) or nearly parallel (dashed)"><input type="checkbox" id="parOn" checked> Parallels</label>
-    <label id="lowerLbl" title="Show the baseline and descender guides (G)"><input type="checkbox" id="lowerOn" checked> Base/desc</label>
+    <label title="Show points and handles (N)"><input type="checkbox" id="nodesOn" checked> Nodes</label>
+    <label title="When you click or move a line, highlight lines parallel to it (solid) or nearly parallel (dashed)"><input type="checkbox" id="parOn" checked> Parallel</label>
+    <label id="lowerLbl" title="Show the baseline and descender guides (G)"><input type="checkbox" id="lowerOn" checked> Base</label>
     <label>Grid <input type="number" id="grid" min="1" max="200" value="10"></label>
   </div>
   <div class="group">
@@ -37,7 +38,7 @@
   <div class="spacer"></div>
   <span id="savestate" class="note"></span>
   <button id="bKeys" title="Keyboard shortcuts">Keys<kbd>H</kbd></button>
-  <button id="bIO">Export / Import</button>
+  <button id="bIO" title="Export and import: project JSON, SVG, downloads">File</button>
 </header>
 
 <main class="work">
@@ -137,6 +138,7 @@
         <code>M</code><span>Switch between Glyphs and Logo mode</span>
         <code>U</code><span>Place the underlay image: drag to move, ⊕ basepoint, ○ rotate, □ scale; double-click sets the basepoint</span>
         <code>Drop / paste image</code><span>Add it as the underlay of the current glyph or drawing</span>
+        <code>N</code><span>Show / hide points, handles and markers, to see just the shapes</span>
         <code>G</code><span>Show / hide the baseline and descender guides</span>
         <code>Esc</code><span>Finish contour, clear selection</span>
         <code>C</code><span>Close (or open) the current contour</span>
