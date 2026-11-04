@@ -1140,6 +1140,24 @@ $('#crad').oninput = e => {
     lastCorner.after = snapshot(); save(); render();
   }
 };
+// A: swing a handle into line with its point's other handle (keeping its own length).
+// With no other handle, line it up with the straight segment on the other side instead.
+function alignHandle(ci, ni, h) {
+  const c = G().contours[ci], n = c.nodes[ni], oh = h === 'i' ? 'o' : 'i', L = c.nodes.length;
+  const len = Math.hypot(n[h].x - n.x, n[h].y - n.y);
+  if (len < 1e-6) return 'This handle sits on its point; drag it out first.';
+  let fx, fy;
+  if (n[oh] && Math.hypot(n[oh].x - n.x, n[oh].y - n.y) > 1e-6) { fx = n[oh].x; fy = n[oh].y; }
+  else {
+    const j = oh === 'i' ? ni - 1 : ni + 1;
+    if (!c.closed && (j < 0 || j >= L)) return 'Nothing to line up with on the other side of this point.';
+    const m = c.nodes[(j + L) % L]; fx = m.x; fy = m.y;
+  }
+  const dx = n.x - fx, dy = n.y - fy, d = Math.hypot(dx, dy);
+  if (d < 1e-6) return 'Nothing to line up with on the other side of this point.';
+  edit(() => { n[h] = { x: R(n.x + dx / d * len), y: R(n.y + dy / d * len) }; });
+  return null;
+}
 // Smooth points keep the other handle in line; Equal points (n.sym) also mirror its length.
 function placeHandle(n, h, p, alt) {
   n[h] = p; if (alt) { n.s = false; delete n.sym; }
@@ -1510,6 +1528,11 @@ window.addEventListener('keydown', e => {
   else if (k === 'f' || k === 'F') { fit(); render(); }
   else if (k === 'g' || k === 'G') setLower(!showLower);
   else if (k === 'n' || k === 'N') setNodes(!showNodes);
+  else if (k === 'a' || k === 'A') {
+    if (!hoverH) { flash('Hover a control point and press A to line it up with the point’s other handle.'); return; }
+    const [ci, ni, h] = hoverH.split(':'), err = alignHandle(+ci, +ni, h);
+    flash(err || 'Handle lined up. Use Smooth, Equal or the chain icon to keep it in line.');
+  }
   else if (k === 'e' || k === 'E') { if (sel.size) { setType('equal'); flash(`Handles made equal on ${sel.size} point${sel.size > 1 ? 's' : ''}.`); } else flash('Select points, then press E to give their handles equal length.'); }
   else if (k === 'h' || k === 'H') showKeys(true);
   else if (k === 'm' || k === 'M') setMode(mode === 'logo' ? 'glyph' : 'logo');

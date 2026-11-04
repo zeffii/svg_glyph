@@ -2,6 +2,10 @@
 
 Newest first. Each numbered entry is one build; the number shows in the app header next to the commit.
 
+## 019 · 2026-11-04
+
+- **A** (align) on a hovered control point swings it into line with its point's other handle, keeping its own length. If the point has no other handle, it lines up with the straight segment on the other side, for a smooth curve-to-line join. Nothing is locked, so use Smooth, Equal or the chain icon afterwards to keep it in line.
+
 ## 018 · 2026-11-04
 
 - **Foldable inspector sections.** Click a header strip to fold or unfold its section (▾ / ▸), or Alt-click to keep only that one open. Folds are remembered in this browser. Headers also work with Enter and Space from the keyboard.
