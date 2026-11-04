@@ -2,6 +2,10 @@
 
 Newest first. Each numbered entry is one build; the number shows in the app header next to the commit.
 
+## 022 · 2026-11-04
+
+- **Scroll wheel zooms around the mouse position**: the point under the cursor stays put. This replaces 021's zoom around the shape's centre. Ctrl+wheel and pinch do the same. Shift+wheel scrolls sideways and Alt+wheel scrolls up and down.
+
 ## 021 · 2026-11-04
 
 - **Scroll wheel zooms around the shape.** The centre of all points in the current glyph or drawing stays put on screen, wherever the mouse is. An empty one zooms around its em box or artboard. Ctrl+wheel (and trackpad pinch) still zooms at the cursor, Shift+wheel scrolls sideways, and Alt+wheel now scrolls up and down; previously plain wheel scrolled.

@@ -65,7 +65,7 @@ Every glyph and drawing can have one image to trace over.
 - **A** over a control point swings it into line with the point's other handle, keeping its length. With no other handle, it lines up with the straight segment on the other side. Nothing gets locked, so add Smooth, Equal or the chain afterwards if you want it to stay in line.
 - The **point type** buttons are Sharp, Smooth (handles stay in line), **Equal** (in line and the same length, mirrored while you drag; key **E**. Equal pairs are drawn with orange arms, a tick across each arm and a dot in the point) and Free (handles move independently).
 - **Close**, **Reverse** and **Del pts** act on the selected contour.
-- **Wheel** zooms around the centre of all points, wherever the mouse is. **Ctrl+wheel** (or trackpad pinch) zooms at the cursor, **Shift+wheel** scrolls sideways, **Alt+wheel** scrolls up and down, and Space-drag or the middle mouse button pans.
+- **Wheel** zooms around the mouse position, and so do Ctrl+wheel and trackpad pinch. **Shift+wheel** scrolls sideways, **Alt+wheel** scrolls up and down, and Space-drag or the middle mouse button pans.
 - **Snap** to a grid of any size. **Undo / redo** with Ctrl+Z / Ctrl+Shift+Z.
 
 ## Corners

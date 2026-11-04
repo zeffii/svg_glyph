@@ -784,13 +784,6 @@ function setMode(m) {
   sel.clear(); active = null; refSeg = null; hoverSeg = null; focusSeg = null; focusFil = null; armed.clear(); ulEdit = false; focusCirc = null;
   fit(); save(); render();
 }
-// Centre of all points in the current glyph or drawing; its em box or artboard when it's empty.
-function shapeCentre() {
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  for (const c of G().contours) for (const n of c.nodes) { x0 = Math.min(x0, n.x); x1 = Math.max(x1, n.x); y0 = Math.min(y0, n.y); y1 = Math.max(y1, n.y); }
-  if (!isFinite(x0)) { const f = frameOf(G()); return { x: f.x + f.w / 2, y: f.y + f.h / 2 }; }
-  return { x: (x0 + x1) / 2, y: (y0 + y1) / 2 };
-}
 function zoomAt(sx, sy, f) {
   const w = toWorld(sx, sy); view.k = Math.min(40, Math.max(.05, view.k * f));
   view.tx = sx - w.x * view.k; view.ty = sy - w.y * view.k;
@@ -1021,10 +1014,9 @@ cv.addEventListener('wheel', e => {
   e.preventDefault();
   const { sx, sy } = local(e), unit = e.deltaMode === 1 ? 16 : 1;
   const f = Math.exp(-e.deltaY * unit * .0025);
-  if (e.ctrlKey || e.metaKey) zoomAt(sx, sy, f);              // pinch / Ctrl+wheel: zoom at the cursor
-  else if (e.shiftKey) view.tx -= e.deltaY * unit;             // scroll sideways
-  else if (e.altKey) view.ty -= e.deltaY * unit;               // scroll up and down
-  else { const c = toScreen(shapeCentre()); zoomAt(c.x, c.y, f); }  // wheel: zoom around the shape's centre
+  if (e.shiftKey && !e.ctrlKey) view.tx -= e.deltaY * unit;   // scroll sideways
+  else if (e.altKey) view.ty -= e.deltaY * unit;                // scroll up and down
+  else zoomAt(sx, sy, f);                                       // wheel, Ctrl+wheel and pinch: zoom around the mouse
   requestRender();
 }, { passive: false });
 function toggleSeg(ci, ai) {
