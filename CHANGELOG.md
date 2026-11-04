@@ -2,6 +2,10 @@
 
 Newest first. Each numbered entry is one build; the number shows in the app header next to the commit.
 
+## 024 · 2026-11-04
+
+- **Chain-icon menu:** hovering a point's chain icon opens a small menu beside it with **(S) Smooth**, which links the handles collinear, and **(E) Equidistant**. The current type is highlighted, and the menu stays open while the mouse is on the chain or the menu. Clicking the chain still toggles the lock, and the S and E keys work too.
+
 ## 023 · 2026-11-04
 
 - **S** makes the selected points Smooth: handles stay in line with independent lengths. It sits alongside E for Equal. On an Equal point, S removes the equal-length lock.

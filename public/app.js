@@ -28,7 +28,8 @@ let font, cur = 0, sel = new Set(), active = null, tool = 'select';
 let view = { k: .5, tx: 0, ty: 0 }, drag = null, hover = null, hoverS = null, spaceDown = false;
 let showLower = true, refSeg = null, parOn = true, flashMsg = '', flashT = 0, hoverSeg = null;
 let cornerR = 40, lastCorner = null, cornerMode = null, hoverF = null, focusSeg = null, focusFil = null;
-let hoverH = null, armed = new Set(), hoverLink = null, focusCirc = null;   // focusCirc: contour index of the selected circle
+let hoverH = null, armed = new Set(), hoverLink = null, focusCirc = null;
+let linkMenu = null, hoverLm = null;   // the S / E menu shown while hovering a point's chain icon   // focusCirc: contour index of the selected circle
 // Mode: 'glyph' edits font.glyphs (with metrics and the proof line); 'logo' edits font.drawings (free drawings on an artboard).
 let mode = 'glyph', curOther = 0, ulEdit = false, hoverUl = null;
 let divideMode = null;   // { targets: [{ ci, ai }] } while waiting for the D-then-digit count
@@ -277,6 +278,37 @@ function linkSpots(g) {
   });
   return out;
 }
+// Chain-icon hover menu: (S) Smooth, link collinear / (E) Equidistant. Only for a point's own chain.
+const LM_W = 150, LM_H = 56;
+function linkMenuBox(Lk) {
+  const W = cv.clientWidth, x = Lk.x + 16 + LM_W > W ? Lk.x - 16 - LM_W : Lk.x + 16;
+  return { x, y: Lk.y - 12, w: LM_W, h: LM_H };
+}
+function hitLinkMenu(sx, sy) {
+  if (!linkMenu) return null;
+  const b = linkMenuBox(linkMenu);
+  if (sx >= b.x && sx <= b.x + b.w && sy >= b.y && sy <= b.y + b.h) return { type: 'lmenu', which: sy < b.y + b.h / 2 ? 'smooth' : 'equal' };
+  // The strip between the chain and the menu keeps it open, so the mouse can travel across.
+  const gx0 = Math.min(linkMenu.x, b.x) - 10, gx1 = Math.max(linkMenu.x, b.x + b.w) + 10;
+  if (sx >= gx0 && sx <= gx1 && sy >= Math.min(b.y, linkMenu.y - 10) && sy <= Math.max(b.y + b.h, linkMenu.y + 10)) return { type: 'lmenu', which: null };
+  return null;
+}
+function renderLinkMenu(g) {
+  const Lk = linkMenu, n = g.contours[Lk.ci]?.nodes[Lk.ni];
+  if (!n) { linkMenu = null; return ''; }
+  const b = linkMenuBox(Lk), curType = n.s ? (n.sym ? 'equal' : 'smooth') : null;
+  const row = (which, letter, cls, title, sub, cy) => {
+    const on = curType === which, hot = hoverLm === which;
+    return `<rect class="lmrow${hot ? ' hot' : ''}" x="${b.x + 1}" y="${cy - 13}" width="${b.w - 2}" height="26"/>`
+      + `<circle class="lmc ${cls}${on ? ' on' : ''}" cx="${b.x + 15}" cy="${cy}" r="9"/>`
+      + `<text class="lml ${cls}" x="${b.x + 15}" y="${cy + 4}" text-anchor="middle">${letter}</text>`
+      + `<text class="lmt" x="${b.x + 30}" y="${sub ? cy - 1 : cy + 4}">${title}</text>`
+      + (sub ? `<text class="lms" x="${b.x + 30}" y="${cy + 11}">${sub}</text>` : '');
+  };
+  return `<g class="lmenu"><rect class="lmbox" x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" rx="3"/>`
+    + row('smooth', 'S', 'sm', 'Smooth', 'link collinear', b.y + 14)
+    + row('equal', 'E', 'eq', 'Equidistant', '', b.y + 42) + '</g>';
+}
 function toggleLink(Lk) {
   let on = false;
   edit(() => {
@@ -356,7 +388,9 @@ function hit(sx, sy) {
     if (near(fe.C)) return { type: 'ccentre', ci: focusCirc };
     for (const hh of circHandles(fe)) if (near(hh.p)) return { type: 'crad', ci: focusCirc, axis: hh.axis };
   }
+  const lm = showNodes && hitLinkMenu(sx, sy); if (lm && lm.which) return lm;
   if (showNodes) for (const Lk of linkSpots(g)) if (Math.hypot(Lk.x - sx, Lk.y - sy) <= 10) return { type: 'link', Lk };
+  if (lm) return lm;
   for (let ci = g.contours.length - 1; ci >= 0; ci--) {
     const c = g.contours[ci];
     for (let ai = 0; ai < c.nodes.length; ai++) if (c.nodes[ai].o) { const f = filletInfo(c, ai); if (f && near(f.C)) return { type: 'fcenter', ci, ai }; }
@@ -534,6 +568,7 @@ function renderCanvas() {
       : '<rect x="-11" y="-3.5" width="8" height="7" rx="3.5"/><rect x="3" y="-3.5" width="8" height="7" rx="3.5"/>';
     s += `<g class="lnk${Lk.locked ? ' on' : ''}${hot ? ' hot' : ''}" transform="translate(${R(Lk.x)} ${R(Lk.y)}) rotate(${R(Lk.ang * 180 / Math.PI)})"><circle class="bg" r="10"/>${links}</g>`;
   }
+  if (linkMenu && showNodes) s += renderLinkMenu(g);
   if (cornerMode && hover && cornerMode.gi === cur) {
     const a = toScreen(cornerMode.ref), b = toScreen(hover);
     s += `<line class="cguide" x1="${R(a.x)}" y1="${R(a.y)}" x2="${R(b.x)}" y2="${R(b.y)}"/><text class="clabel" x="${R(b.x + 12)}" y="${R(b.y - 12)}">${cornerMode.type === 'fillet' ? 'radius' : 'cut'} ${cornerMode.r}</text>`;
@@ -804,7 +839,17 @@ function startMove(h, e, w, before, keepSel) {
 cv.addEventListener('pointerdown', e => {
   const { sx, sy } = local(e), w = toWorld(sx, sy);
   if (cornerMode) { e.preventDefault(); finishCorner(e.button === 0); return; }
-  if (e.button === 0 && !spaceDown) { const hl = hit(sx, sy); if (hl && hl.type === 'link') { toggleLink(hl.Lk); return; } }
+  if (e.button === 0 && !spaceDown) {
+    const hl = hit(sx, sy);
+    if (hl && hl.type === 'link') { toggleLink(hl.Lk); return; }
+    if (hl && hl.type === 'lmenu') {
+      if (!hl.which) return;
+      const k = key(linkMenu.ci, linkMenu.ni);
+      setType(hl.which, [k]);
+      flash(hl.which === 'equal' ? 'Equidistant: handles in line and the same length.' : 'Smooth: handles in line, lengths independent.');
+      return;
+    }
+  }
   cv.setPointerCapture(e.pointerId);
   if (e.button === 1 || (e.button === 0 && spaceDown)) { e.preventDefault(); drag = { kind: 'pan', sx, sy, tx: view.tx, ty: view.ty }; return; }
   if (e.button !== 0) return;
@@ -899,13 +944,19 @@ window.addEventListener('pointermove', e => {
     const h = spaceDown ? null : hit(sx, sy);
     const hs = h && h.type === 'seg' ? { ci: h.ci, ai: h.ni } : null;
     if ((hs && key(hs.ci, hs.ai)) !== (hoverSeg && key(hoverSeg.ci, hoverSeg.ai))) { hoverSeg = hs; requestRender(); }
+    // Open the S / E menu on a point's chain; keep it open while the mouse is on the chain or the menu.
+    const lmWas = linkMenu && `${linkMenu.ci}:${linkMenu.ni}:${hoverLm}`;
+    if (h && h.type === 'link' && h.Lk.kind === 'node') { linkMenu = h.Lk; hoverLm = null; }
+    else if (h && h.type === 'lmenu') hoverLm = h.which;
+    else { linkMenu = null; hoverLm = null; }
+    if ((linkMenu && `${linkMenu.ci}:${linkMenu.ni}:${hoverLm}`) !== lmWas) requestRender();
     const hl = h && h.type === 'link' ? h.Lk : null;
     if (JSON.stringify(hl) !== JSON.stringify(hoverLink)) { hoverLink = hl; requestRender(); }
     const hh = h && h.type === 'handle' ? `${h.ci}:${h.ni}:${h.h}` : null;
     if (hh !== hoverH) { hoverH = hh; requestRender(); }
     const hf = h && h.type === 'fcenter' ? key(h.ci, h.ai) : null;
     if (hf !== hoverF) { hoverF = hf; requestRender(); }
-    cv.style.cursor = spaceDown ? 'grab' : h ? (h.type === 'adv' ? 'ew-resize' : h.type === 'link' ? 'pointer' : h.type === 'seg' ? (e.shiftKey ? 'move' : tool === 'pen' ? 'copy' : 'pointer') : 'move') : (tool === 'pen' || tool === 'circle' ? 'crosshair' : 'default');
+    cv.style.cursor = spaceDown ? 'grab' : h ? (h.type === 'adv' ? 'ew-resize' : h.type === 'link' || h.type === 'lmenu' ? 'pointer' : h.type === 'seg' ? (e.shiftKey ? 'move' : tool === 'pen' ? 'copy' : 'pointer') : 'move') : (tool === 'pen' || tool === 'circle' ? 'crosshair' : 'default');
     if (tool === 'pen' && active !== null) requestRender();
     return;
   }
@@ -1218,9 +1269,9 @@ function deleteSelected() {
     sel.clear(); active = null;
   });
 }
-function setType(type) {
+function setType(type, keys = sel) {
   edit(() => {
-    for (const k of sel) {
+    for (const k of keys) {
       const [ci, ni] = unkey(k), c = G().contours[ci], n = c.nodes[ni];
       if (type === 'sharp') { n.i = n.o = null; n.s = false; delete n.sym; }
       else if (type === 'free') { if (!n.i && !n.o) autoSmooth(c, ni); n.s = false; delete n.sym; }

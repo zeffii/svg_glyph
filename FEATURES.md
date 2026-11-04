@@ -79,7 +79,7 @@ Every glyph and drawing can have one image to trace over.
 - When you hover a line, dashed extensions run out to the board edges.
 - **Parallels:** clicking or moving a line highlights the lines parallel to it. Solid means exactly parallel; dashed means within 3°. **L** on one line, then **L** on another, makes the second parallel to the first.
 - **Control arms** turn green when they line up with an adjacent arm. Solid green means the same infinite line; dashed green means parallel but offset.
-- **Chain icon:** click it to lock collinear arms, on a point (its two arms) or across a segment (the facing arms stay on the line through its points). Click again to unlink.
+- **Chain icon:** click it to lock collinear arms, on a point (its two arms) or across a segment (the facing arms stay on the line through its points). Click again to unlink. Hovering a point's chain opens a small menu: **(S) Smooth**, which links the handles collinear, and **(E) Equidistant**. The current choice is highlighted.
 - **Arming:** hover a control point and press **+** to arm it. Armed points move along with the one you drag. **−** disarms.
 - **N**, or the **Nodes** checkbox, hides points, handles, chain links, and the fillet and circle markers, so you see just the shapes. Hidden points can't be grabbed, but clicking an outline still selects and moves the contour.
 - **Metrics:** cap height, x-height, baseline and descender. **G** hides the baseline and descender guides.

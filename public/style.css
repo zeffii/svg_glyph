@@ -111,6 +111,15 @@ kbd{font-family:inherit;color:var(--dim);margin-left:1ch}
 #cv .crline{stroke:var(--cmd);stroke-width:1;stroke-dasharray:4 3}
 #cv .crh{fill:var(--board);stroke:var(--cmd);stroke-width:1.5;cursor:pointer}
 #cv .crh.hot{fill:var(--cmd)}
+#cv .lmbox{fill:var(--bg);stroke:var(--line)}
+#cv .lmrow{fill:transparent;cursor:pointer}
+#cv .lmrow.hot{fill:var(--field-hi)}
+#cv .lmc{fill:var(--field);stroke-width:1.5;pointer-events:none}
+#cv .lmc.sm{stroke:var(--par)} #cv .lmc.eq{stroke:var(--eq)}
+#cv .lmc.on.sm{fill:color-mix(in srgb, var(--par) 30%, var(--field))} #cv .lmc.on.eq{fill:color-mix(in srgb, var(--eq) 30%, var(--field))}
+#cv .lml{font:12px var(--mono);pointer-events:none} #cv .lml.sm{fill:var(--par)} #cv .lml.eq{fill:var(--eq)}
+#cv .lmt{fill:var(--fg);font:12px var(--mono);pointer-events:none}
+#cv .lms{fill:var(--muted);font:11px var(--mono);pointer-events:none}
 #cv .marq{fill:var(--cyan);fill-opacity:.08;stroke:var(--cyan);stroke-width:1;stroke-dasharray:3 3}
 
 .insp{border-left:1px solid var(--line);overflow:auto;min-height:0}
