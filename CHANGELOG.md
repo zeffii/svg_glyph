@@ -2,6 +2,11 @@
 
 Newest first. Each numbered entry is one build; the number shows in the app header next to the commit.
 
+## 013 · 2026-11-04
+
+- **Path data box marks the selection.** Each contour line holding selected points gets a pink bar in the margin, and the command that ends at each selected point (`M…`, `L…` or `C…`) is outlined in the same pink as selected points on the board. It updates live while you select and drag. While you're typing in the box it shows plain highlighting instead.
+- `path.js` gains `contourTokens`, which `contourD` is now built from, so each command knows which point it belongs to.
+
 ## 012 · 2026-11-04
 
 - **Circles stay circles.** Any contour that forms a true circle or ellipse is recognised from its shape: 4 smooth points with the right handles, in any start point or direction, including imported ones.

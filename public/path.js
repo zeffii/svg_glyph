@@ -3,13 +3,25 @@ export const R = v => (Math.round(v * 10) / 10) || 0;
 export const P = p => `${R(p.x)} ${R(p.y)}`;
 export const N = (x, y) => ({ x, y, i: null, o: null, s: false });
 
+// A contour as path commands, each tagged with the node it ends at (null for Z).
+// contourD is these joined, so the app can highlight the command for each selected point.
+export function contourTokens(c) {
+  const ns = c.nodes; if (!ns.length) return [];
+  const seg = (a, b, node) => (a.o || b.i)
+    ? { text: `C${P(a.o || a)} ${P(b.i || b)} ${P(b)}`, node }
+    : { text: `L${P(b)}`, node };
+  const out = [{ text: `M${P(ns[0])}`, node: 0 }];
+  for (let k = 1; k < ns.length; k++) out.push(seg(ns[k - 1], ns[k], k));
+  if (c.closed && ns.length > 1) {
+    const a = ns[ns.length - 1], b = ns[0];
+    if (a.o || b.i) out.push(seg(a, b, 0));
+    out.push({ text: 'Z', node: null });
+  }
+  return out;
+}
+
 export function contourD(c) {
-  const ns = c.nodes; if (!ns.length) return '';
-  const seg = (a, b) => (a.o || b.i) ? ` C${P(a.o || a)} ${P(b.i || b)} ${P(b)}` : ` L${P(b)}`;
-  let d = `M${P(ns[0])}`;
-  for (let k = 1; k < ns.length; k++) d += seg(ns[k - 1], ns[k]);
-  if (c.closed && ns.length > 1) { const a = ns[ns.length - 1], b = ns[0]; if (a.o || b.i) d += seg(a, b); d += ' Z'; }
-  return d;
+  return contourTokens(c).map(t => t.text).join(' ');
 }
 export const glyphD = g => g.contours.map(contourD).filter(Boolean).join(' ');
 

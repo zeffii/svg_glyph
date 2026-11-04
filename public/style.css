@@ -136,6 +136,9 @@ textarea{width:100%;box-sizing:border-box;background:var(--field);border:0;borde
 #dhl{position:absolute;inset:0;overflow:hidden;pointer-events:none;color:var(--fg)}
 #dhl .c{color:var(--cmd)}
 #dhl .cm{color:var(--par)}
+#dhl .ln{display:block;position:relative}
+#dhl .ln.on::before{content:"";position:absolute;left:-6px;top:0;bottom:0;width:3px;background:var(--magenta)}
+#dhl .tok{background:color-mix(in srgb, var(--magenta) 28%, transparent);outline:1px solid var(--magenta);border-radius:2px}
 #dtext{position:relative;display:block;min-height:120px;overflow:hidden;resize:none;background:transparent;color:transparent;caret-color:var(--fg)}
 .keys{color:var(--muted);display:grid;grid-template-columns:auto 1fr;gap:1px 2ch;font-size:12px}
 .keys code{font-family:inherit;color:var(--fg);white-space:nowrap}

@@ -85,6 +85,7 @@ Every glyph and drawing can have one image to trace over.
 
 - The box shows one contour per line. Circles and ellipses get a comment such as `// circle  c 480,470  r 230`.
 - Comments are display-only. Anything after `//` is ignored when you edit the box or paste path text, and exports never include them.
+- **Selection is marked in the box.** Each contour with selected points gets a pink bar in the margin, and the command ending at each selected point is outlined in pink, the same pink as selected points on the board.
 - **Copy** copies the text as shown. **Copy without comments**, under the box, copies plain path data on one line.
 
 - The **path data** box shows the glyph's `d` attribute with commands highlighted. Editing it updates the glyph live.

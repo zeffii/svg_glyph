@@ -1,4 +1,4 @@
-import { R, P, N, contourD, glyphD, parseD, isAligned } from './path.js';
+import { R, P, N, contourD, contourTokens, glyphD, parseD, isAligned } from './path.js';
 import { ulToWorld, ulToImage, ulSetBase, ulTransform, ulCorners, ulHit, ulFit, newUnderlay } from './underlay.js';
 import { putImage, imageURL, imageSize } from './images.js';
 
@@ -212,13 +212,14 @@ function setEllipseVec(c, C, a, b) {
   });
 }
 // Path data box: one contour per line; circles and ellipses get a display-only comment.
-function contourLine(c) {
-  const d = contourD(c), e = ellipseInfo(c);
-  if (!e) return d;
+function contourComment(c) {
+  const e = ellipseInfo(c);
+  if (!e) return '';
   return e.circle
-    ? `${d}   // circle  c ${R(e.C.x)},${R(e.C.y)}  r ${R(e.ra)}`
-    : `${d}   // ellipse  c ${R(e.C.x)},${R(e.C.y)}  r ${R(e.rx)} × ${R(e.ry)}`;
+    ? `   // circle  c ${R(e.C.x)},${R(e.C.y)}  r ${R(e.ra)}`
+    : `   // ellipse  c ${R(e.C.x)},${R(e.C.y)}  r ${R(e.rx)} × ${R(e.ry)}`;
 }
+const contourLine = c => `${contourD(c)}${contourComment(c)}`;
 const stripComments = t => t.replace(/\/\/[^\n]*/g, ' ');
 function reverseContour(c) {
   // A segment lock lives on the segment's first node; after reversing, that segment starts at the other end.
@@ -671,12 +672,29 @@ function renderUnderlayPanel(g) {
   setVal('#ulRot', ul ? R(ul.rot) : ''); setVal('#ulS', ul ? Math.round(ul.s * 10000) / 10000 : '');
 }
 function hlD() {
-  const t = $('#dtext');
+  const t = $('#dtext'), g = G();
   const code = x => x.replace(/([MmLlHhVvCcSsQqTtZzAa])|([^MmLlHhVvCcSsQqTtZzAa]+)/g, (m, c, o) => c ? `<span class="c">${c}</span>` : esc(o));
-  $('#dhl').innerHTML = `${t.value.split('\n').map(line => {
-    const at = line.indexOf('//');
-    return at < 0 ? code(line) : `${code(line.slice(0, at))}<span class="cm">${esc(line.slice(at))}</span>`;
-  }).join('\n')}\n`;
+  const lines = g.contours.map(contourLine).filter(Boolean);
+  if (document.activeElement !== t && t.value === lines.join('\n')) {
+    // Showing the model's own text: mark contours with selected points (bar in the margin)
+    // and outline the command that ends at each selected point.
+    $('#dhl').innerHTML = g.contours.map((c, ci) => {
+      if (!c.nodes.length) return '';
+      let any = false;
+      const body = contourTokens(c).map(tk => {
+        const on = tk.node !== null && sel.has(key(ci, tk.node));
+        if (on) any = true;
+        return on ? `<span class="tok">${code(tk.text)}</span>` : code(tk.text);
+      }).join(' ');
+      const cm = contourComment(c);
+      return `<span class="ln${any ? ' on' : ''}">${body}${cm ? `<span class="cm">${esc(cm)}</span>` : ''}</span>`;
+    }).filter(Boolean).join('') + '<span class="ln">&#8203;</span>';
+  } else {
+    $('#dhl').innerHTML = `${t.value.split('\n').map(line => {
+      const at = line.indexOf('//');
+      return at < 0 ? code(line) : `${code(line.slice(0, at))}<span class="cm">${esc(line.slice(at))}</span>`;
+    }).join('\n')}\n`;
+  }
   t.style.height = 'auto'; t.style.height = `${t.scrollHeight + 2}px`;
 }
 
