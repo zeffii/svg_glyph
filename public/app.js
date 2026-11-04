@@ -168,6 +168,20 @@ function finishDivide(n) {
   });
   flash(`Divided ${targets.length > 1 ? `${targets.length} segments` : 'the segment'} into ${n + 1} equal parts.`);
 }
+// A circle (or ellipse) as four cubic quarter-arcs on four smooth points: top, right, bottom, left.
+// k = 4/3·(√2 − 1) puts the arc within 0.03% of a true circle.
+const KAPPA = 0.5522847498;
+function setEllipse(c, cx, cy, rx, ry) {
+  const kx = rx * KAPPA, ky = ry * KAPPA;
+  const pt = (x, y, ix, iy, ox, oy) => ({ x, y, i: { x: ix, y: iy }, o: { x: ox, y: oy }, s: true });
+  c.closed = true;
+  c.nodes = [
+    pt(cx, cy - ry, cx - kx, cy - ry, cx + kx, cy - ry),
+    pt(cx + rx, cy, cx + rx, cy - ky, cx + rx, cy + ky),
+    pt(cx, cy + ry, cx + kx, cy + ry, cx - kx, cy + ry),
+    pt(cx - rx, cy, cx - rx, cy + ky, cx - rx, cy - ky),
+  ];
+}
 function reverseContour(c) {
   // A segment lock lives on the segment's first node; after reversing, that segment starts at the other end.
   const L = c.nodes.length, locks = c.nodes.map(n => !!n.lo);
@@ -467,6 +481,11 @@ function renderCanvas() {
     const a = toScreen(cornerMode.ref), b = toScreen(hover);
     s += `<line class="cguide" x1="${R(a.x)}" y1="${R(a.y)}" x2="${R(b.x)}" y2="${R(b.y)}"/><text class="clabel" x="${R(b.x + 12)}" y="${R(b.y - 12)}">${cornerMode.type === 'fillet' ? 'radius' : 'cut'} ${cornerMode.r}</text>`;
   }
+  if (drag && drag.kind === 'circle' && hover) {
+    const a = toScreen(drag.c), b = toScreen(hover);
+    s += `<path class="fc" d="M${R(a.x - 4)} ${R(a.y)}h8M${R(a.x)} ${R(a.y - 4)}v8"/><line class="cguide" x1="${R(a.x)}" y1="${R(a.y)}" x2="${R(b.x)}" y2="${R(b.y)}"/>`;
+    s += `<text class="clabel" x="${R(b.x + 12)}" y="${R(b.y - 12)}">${drag.rx === drag.ry ? `r ${drag.rx}` : `${drag.rx} × ${drag.ry}`}</text>`;
+  }
   if (drag && drag.kind === 'marquee') {
     const a = toScreen({ x: drag.x0, y: drag.y0 }), b = toScreen({ x: drag.x1, y: drag.y1 });
     s += `<rect class="marq" x="${Math.min(a.x, b.x)}" y="${Math.min(a.y, b.y)}" width="${Math.abs(b.x - a.x)}" height="${Math.abs(b.y - a.y)}"/>`;
@@ -479,6 +498,7 @@ function renderCanvas() {
     : ulEdit ? '<b>Underlay</b> · drag the image to move it, drag ⊕ to move the basepoint (or double-click the image), drag ○ to rotate and □ to scale around the basepoint; Shift snaps rotation to 15°, U or Esc to finish'
     : cornerMode ? `<b>${cornerMode.type === 'fillet' ? 'Fillet' : 'Chamfer'}</b> · move away from the corner to set the ${cornerMode.type === 'fillet' ? 'radius' : 'cut'}, click or Enter to apply, Esc or right-click to cancel`
     : refSeg ? '<b>Reference line set</b> · hover another line and press L to make it parallel, Esc to cancel'
+    : tool === 'circle' ? '<b>Circle</b> · drag from the centre to set the radius, Shift-drag for an ellipse; snaps to the grid'
     : tool === 'pen'
     ? (active !== null ? '<b>Pen</b> · click to add, drag to pull a curve, click the first point to close, Esc to finish' : '<b>Pen</b> · click to start a contour, click a segment to add a point, click an open end to continue it')
     : '<b>Select</b> · drag points or handles, Shift-drag a line to move it, B or right-click a segment for line ↔ curve';
@@ -631,7 +651,7 @@ function renderPreview() {
 }
 function render() {
   renderCanvas(); renderList(); renderInspector(); renderPreview();
-  $('#tSelect').classList.toggle('on', tool === 'select'); $('#tPen').classList.toggle('on', tool === 'pen');
+  $('#tSelect').classList.toggle('on', tool === 'select'); $('#tPen').classList.toggle('on', tool === 'pen'); $('#tCircle').classList.toggle('on', tool === 'circle');
   const logo = mode === 'logo';
   $('#mGlyph').classList.toggle('on', !logo); $('#mLogo').classList.toggle('on', logo);
   $('.preview').hidden = logo; $('#secMetrics').hidden = logo; $('#rowAdv').hidden = logo; $('#rowSize').hidden = !logo;
@@ -695,6 +715,11 @@ cv.addEventListener('pointerdown', e => {
   if (h && h.type === 'handle') { const k = key(h.ci, h.ni); if (!sel.has(k)) sel = new Set([k]); const own = `${h.ci}:${h.ni}:${h.h}`, n0 = nodeOf(k);
     const arm = [...armed].filter(a => a !== own).map(a => { const p = a.split(':'), n = nodeOf(`${p[0]}:${p[1]}`); return n && n[p[2]] ? { k: `${p[0]}:${p[1]}`, h: p[2], o: { ...n[p[2]] } } : null; }).filter(Boolean);
     drag = { kind: 'handle', k, h: h.h, h0: { ...n0[h.h] }, arm, before }; render(); return; }
+  if (tool === 'circle' && !(h && h.type === 'anchor')) {
+    g.contours.push({ closed: true, nodes: [] });
+    drag = { kind: 'circle', ci: g.contours.length - 1, c: { x: sn(w.x), y: sn(w.y) }, rx: 0, ry: 0, before };
+    sel = new Set(); active = null; render(); return;
+  }
   focusFil = null;
   if (h && h.type === 'fcenter') { focusFil = key(h.ci, h.ai); drag = { kind: 'fillet', ci: h.ci, ai: h.ai, before }; render(); return; }
   if (h && h.type === 'seg' && !e.shiftKey && tool === 'select') {
@@ -771,7 +796,7 @@ window.addEventListener('pointermove', e => {
     if (hh !== hoverH) { hoverH = hh; requestRender(); }
     const hf = h && h.type === 'fcenter' ? key(h.ci, h.ai) : null;
     if (hf !== hoverF) { hoverF = hf; requestRender(); }
-    cv.style.cursor = spaceDown ? 'grab' : h ? (h.type === 'adv' ? 'ew-resize' : h.type === 'link' ? 'pointer' : h.type === 'seg' ? (e.shiftKey ? 'move' : tool === 'pen' ? 'copy' : 'pointer') : 'move') : (tool === 'pen' ? 'crosshair' : 'default');
+    cv.style.cursor = spaceDown ? 'grab' : h ? (h.type === 'adv' ? 'ew-resize' : h.type === 'link' ? 'pointer' : h.type === 'seg' ? (e.shiftKey ? 'move' : tool === 'pen' ? 'copy' : 'pointer') : 'move') : (tool === 'pen' || tool === 'circle' ? 'crosshair' : 'default');
     if (tool === 'pen' && active !== null) requestRender();
     return;
   }
@@ -801,6 +826,14 @@ window.addEventListener('pointermove', e => {
       break;
     }
     case 'adv': G().adv = Math.max(0, Math.round(sn(w.x))); break;
+    case 'circle': {
+      const dx = w.x - drag.c.x, dy = w.y - drag.c.y, snapR = v => snapOn ? Math.round(v / gridSize) * gridSize : R(v);
+      if (e.shiftKey) { drag.rx = snapR(Math.abs(dx)); drag.ry = snapR(Math.abs(dy)); }
+      else drag.rx = drag.ry = snapR(Math.hypot(dx, dy));
+      const c = G().contours[drag.ci];
+      if (drag.rx > 0 && drag.ry > 0) setEllipse(c, drag.c.x, drag.c.y, drag.rx, drag.ry); else c.nodes = [];
+      break;
+    }
     case 'ulmove': {
       const ul = G().ul;
       let dx = w.x - drag.w0.x, dy = w.y - drag.w0.y;
@@ -845,6 +878,11 @@ window.addEventListener('pointermove', e => {
 });
 window.addEventListener('pointerup', () => {
   if (!drag) return;
+  if (drag.kind === 'circle') {
+    const g = G(), c = g.contours[drag.ci];
+    if (!c || c.nodes.length < 4) g.contours.splice(drag.ci, 1);
+    else { sel = new Set(c.nodes.map((_, ni) => key(drag.ci, ni))); flash(`${drag.rx === drag.ry ? `Circle r ${drag.rx}` : `Ellipse ${drag.rx} × ${drag.ry}`} at ${R(drag.c.x)}, ${R(drag.c.y)}.`); }
+  }
   if (drag.before !== undefined) commit(drag.before);
   drag = null; render();
 });
@@ -1288,9 +1326,10 @@ $('#pspace').onchange = e => { const v = parseFloat(e.target.value); if (isFinit
 $('#pview').onclick = e => { const p = e.target.closest('[data-gi]'); if (p) selectGlyph(+p.dataset.gi); };
 
 /* ---------- toolbar ---------- */
-function setTool(t) { tool = t; ulEdit = false; if (t === 'select') active = null; render(); }
+function setTool(t) { tool = t; ulEdit = false; if (t !== 'pen') active = null; render(); }
 $('#tSelect').onclick = () => setTool('select');
 $('#tPen').onclick = () => setTool('pen');
+$('#tCircle').onclick = () => setTool('circle');
 $('#mGlyph').onclick = () => setMode('glyph');
 $('#mLogo').onclick = () => setMode('logo');
 $('#bUndo').onclick = undo; $('#bRedo').onclick = redo;
@@ -1329,6 +1368,7 @@ window.addEventListener('keydown', e => {
   if (k === ' ') { e.preventDefault(); if (!spaceDown) { spaceDown = true; cv.style.cursor = 'grab'; } return; }
   if (k === 'v' || k === 'V') setTool('select');
   else if (k === 'p' || k === 'P') setTool('pen');
+  else if (k === 'o' || k === 'O') setTool('circle');
   else if (k === 'f' || k === 'F') { fit(); render(); }
   else if (k === 'g' || k === 'G') setLower(!showLower);
   else if (k === 'h' || k === 'H') showKeys(true);
@@ -1418,7 +1458,7 @@ document.addEventListener('click', e => { const b = e.target.closest('button'); 
 /* ---------- boot ---------- */
 fetch('version.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(v => {
   if (!v) return;
-  const el = $('#ver'); el.textContent = `${v.build ? `build ${v.build}` : ''}${v.commit ? ` · ${v.commit}` : ''}`.replace(/^ · /, '');
+  const el = $('#ver'); el.textContent = `${v.build ? `#${v.build}` : ''}${v.commit ? ` · ${v.commit}` : ''}`.replace(/^ · /, '');
   el.title = `Commit ${v.commit || '?'}${v.date ? `, ${v.date}` : ''}`;
 }).catch(() => {});
 cv.innerHTML = '<image id="ulimg" preserveAspectRatio="none" style="display:none"/><g id="ovl"></g>';

@@ -2,6 +2,11 @@
 
 Newest first. Each numbered entry is one build; the number shows in the app header next to the commit.
 
+## 011 · 2026-11-04
+
+- **Circle tool (O):** drag from the centre to set the radius, which snaps to the grid. Shift-drag makes an ellipse. A live guide shows the radius. The circle is four cubic quarter-arcs on four smooth points (within 0.03% of a true circle), so it can be divided, filleted, copied and edited like any other contour. It works in both modes, and the new circle comes out selected.
+- The header shows the build as `#011 · <commit>`, and the toolbar spacing was tightened so the new tool still fits on one line.
+
 ## 010 · 2026-11-04
 
 - **Divide:** hover a segment and press **D**, then a digit **1–9** to add that many points, evenly spaced by length. Curves keep their exact shape. With nothing hovered, D divides every segment whose two end points are selected. The target is highlighted while it waits for the digit, any other key cancels, and the new points come out selected.

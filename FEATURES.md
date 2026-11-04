@@ -47,6 +47,7 @@ Every glyph and drawing can have one image to trace over.
 | Pen, click the first point, or **C** | Close the contour |
 | **Esc** | Finish the contour |
 | **V** | Select tool |
+| **O**, then drag | Circle from the centre, radius snapped to the grid. **Shift**-drag makes an ellipse. It's built from 4 smooth points, so it edits like any other contour |
 | **I** over a segment | Insert a point at the cursor; curves keep their shape |
 | **D**, then **1–9** | Divide the hovered segment (or every segment between selected points) with that many evenly spaced points |
 | Double-click a segment | Insert a point (Select tool) |
