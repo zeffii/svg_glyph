@@ -27,7 +27,7 @@ let font, cur = 0, sel = new Set(), active = null, tool = 'select';
 let view = { k: .5, tx: 0, ty: 0 }, drag = null, hover = null, hoverS = null, spaceDown = false;
 let showLower = true, refSeg = null, parOn = true, flashMsg = '', flashT = 0, hoverSeg = null;
 let cornerR = 40, lastCorner = null, cornerMode = null, hoverF = null, focusSeg = null, focusFil = null;
-let hoverH = null, armed = new Set(), hoverLink = null;
+let hoverH = null, armed = new Set(), hoverLink = null, focusCirc = null;   // focusCirc: contour index of the selected circle
 // Mode: 'glyph' edits font.glyphs (with metrics and the proof line); 'logo' edits font.drawings (free drawings on an artboard).
 let mode = 'glyph', curOther = 0, ulEdit = false, hoverUl = null;
 let divideMode = null;   // { targets: [{ ci, ai }] } while waiting for the D-then-digit count
@@ -90,7 +90,7 @@ function commit(before) {
 }
 function undo() { if (!undoS.length) return; redoS.push(snapshot()); font = JSON.parse(undoS.pop()); afterHistory(); }
 function redo() { if (!redoS.length) return; undoS.push(snapshot()); font = JSON.parse(redoS.pop()); afterHistory(); }
-function afterHistory() { cur = Math.min(cur, items().length - 1); sel.clear(); active = null; refSeg = null; hoverSeg = null; focusSeg = null; focusFil = null; armed.clear(); save(); render(); }
+function afterHistory() { focusCirc = null; cur = Math.min(cur, items().length - 1); sel.clear(); active = null; refSeg = null; hoverSeg = null; focusSeg = null; focusFil = null; armed.clear(); save(); render(); }
 function edit(fn) { const b = snapshot(); fn(); enforceLocks(); commit(b); render(); }
 
 /* ---------- geometry ---------- */
@@ -182,6 +182,44 @@ function setEllipse(c, cx, cy, rx, ry) {
     pt(cx - rx, cy, cx - rx, cy + ky, cx - rx, cy - ky),
   ];
 }
+// Recognise a circle or ellipse from its shape: 4 smooth points at C ± a and C ± b, with perpendicular a and b,
+// and each handle κ along the next point's offset. Works whichever point starts the contour and either direction,
+// so imported and pasted circles count too.
+function ellipseInfo(c) {
+  if (!c || !c.closed || c.nodes.length !== 4 || c.nodes.some(n => !n.i || !n.o)) return null;
+  const n = c.nodes, C = { x: (n[0].x + n[2].x) / 2, y: (n[0].y + n[2].y) / 2 };
+  const v = n.map(p => ({ x: p.x - C.x, y: p.y - C.y })), ra = Math.hypot(v[0].x, v[0].y), rb = Math.hypot(v[1].x, v[1].y);
+  if (ra < 1e-3 || rb < 1e-3) return null;
+  const tol = Math.max(.25, .004 * Math.max(ra, rb)), off = (p, q) => Math.hypot(p.x - q.x, p.y - q.y) > tol;
+  if (off(v[1], { x: -v[3].x, y: -v[3].y })) return null;
+  if (Math.abs(v[0].x * v[1].x + v[0].y * v[1].y) / (ra * rb) > .01) return null;
+  for (let k = 0; k < 4; k++) {
+    const p = n[k], nx = v[(k + 1) % 4];
+    if (off(p.o, { x: p.x + KAPPA * nx.x, y: p.y + KAPPA * nx.y }) || off(p.i, { x: p.x - KAPPA * nx.x, y: p.y - KAPPA * nx.y })) return null;
+  }
+  const circle = Math.abs(ra - rb) <= tol;
+  // For the label, call the more horizontal axis rx.
+  const [rx, ry] = Math.abs(v[0].x) >= Math.abs(v[1].x) ? [ra, rb] : [rb, ra];
+  return { C, a: v[0], b: v[1], ra, rb, circle, rx, ry };
+}
+// Rebuild an ellipse from its centre and the offsets of its first two points, keeping start point and direction.
+function setEllipseVec(c, C, a, b) {
+  const v = [a, b, { x: -a.x, y: -a.y }, { x: -b.x, y: -b.y }];
+  c.closed = true;
+  c.nodes = v.map((p, k) => {
+    const nx = v[(k + 1) % 4], x = C.x + p.x, y = C.y + p.y;
+    return { x, y, i: { x: x - KAPPA * nx.x, y: y - KAPPA * nx.y }, o: { x: x + KAPPA * nx.x, y: y + KAPPA * nx.y }, s: true };
+  });
+}
+// Path data box: one contour per line; circles and ellipses get a display-only comment.
+function contourLine(c) {
+  const d = contourD(c), e = ellipseInfo(c);
+  if (!e) return d;
+  return e.circle
+    ? `${d}   // circle  c ${R(e.C.x)},${R(e.C.y)}  r ${R(e.ra)}`
+    : `${d}   // ellipse  c ${R(e.C.x)},${R(e.C.y)}  r ${R(e.rx)} × ${R(e.ry)}`;
+}
+const stripComments = t => t.replace(/\/\/[^\n]*/g, ' ');
 function reverseContour(c) {
   // A segment lock lives on the segment's first node; after reversing, that segment starts at the other end.
   const L = c.nodes.length, locks = c.nodes.map(n => !!n.lo);
@@ -220,7 +258,7 @@ function linkSpots(g) {
   g.contours.forEach((c, ci) => {
     const L = c.nodes.length;
     c.nodes.forEach((n, ni) => {
-      if (!real(n, 'i') || !real(n, 'o') || !sel.has(key(ci, ni))) return;
+      if (ci === focusCirc || !real(n, 'i') || !real(n, 'o') || !sel.has(key(ci, ni))) return;
       const b = ang(n, 'o');
       if (!n.s && lineAngDiff(ang(n, 'i'), b) >= LINK_TOL) return;
       const p = toScreen(n);
@@ -303,8 +341,19 @@ function setFillet(c, f, r) {
   A.x = f.V.x + f.u1.x * d; A.y = f.V.y + f.u1.y * d; A.i = null; A.o = { x: A.x - f.u1.x * h, y: A.y - f.u1.y * h };
   B.x = f.V.x + f.u2.x * d; B.y = f.V.y + f.u2.y * d; B.o = null; B.i = { x: B.x - f.u2.x * h, y: B.y - f.u2.y * h };
 }
+function circHandles(e) {
+  // Centre, plus one radius handle for a circle, or one per axis for an ellipse.
+  const C = e.C, hs = [{ axis: 'b', p: { x: C.x + e.b.x, y: C.y + e.b.y } }];
+  if (!e.circle) hs.push({ axis: 'a', p: { x: C.x + e.a.x, y: C.y + e.a.y } });
+  return hs;
+}
 function hit(sx, sy) {
   const g = G(), near = p => { const s = toScreen(p); return Math.hypot(s.x - sx, s.y - sy) <= 7; };
+  const fe = focusCirc !== null && ellipseInfo(g.contours[focusCirc]);
+  if (fe) {
+    if (near(fe.C)) return { type: 'ccentre', ci: focusCirc };
+    for (const hh of circHandles(fe)) if (near(hh.p)) return { type: 'crad', ci: focusCirc, axis: hh.axis };
+  }
   for (const Lk of linkSpots(g)) if (Math.hypot(Lk.x - sx, Lk.y - sy) <= 10) return { type: 'link', Lk };
   for (let ci = g.contours.length - 1; ci >= 0; ci--) {
     const c = g.contours[ci];
@@ -481,6 +530,20 @@ function renderCanvas() {
     const a = toScreen(cornerMode.ref), b = toScreen(hover);
     s += `<line class="cguide" x1="${R(a.x)}" y1="${R(a.y)}" x2="${R(b.x)}" y2="${R(b.y)}"/><text class="clabel" x="${R(b.x + 12)}" y="${R(b.y - 12)}">${cornerMode.type === 'fillet' ? 'radius' : 'cut'} ${cornerMode.r}</text>`;
   }
+  const fe = focusCirc !== null && ellipseInfo(g.contours[focusCirc]);
+  if (fe) {
+    const c = g.contours[focusCirc], Cs = toScreen(fe.C);
+    const segPath = c.nodes.map((n, k) => { const m = c.nodes[(k + 1) % 4], q = [n.o, m.i, m].map(toScreen); return `C${q.map(p => `${R(p.x)} ${R(p.y)}`).join(' ')}`; }).join('');
+    const s0 = toScreen(c.nodes[0]);
+    s += `<path class="farc" d="M${R(s0.x)} ${R(s0.y)}${segPath}Z"/>`;
+    for (const hh of circHandles(fe)) {
+      const Hs = toScreen(hh.p), r = hh.axis === 'a' ? fe.ra : fe.rb, hot = drag && drag.kind === 'crad' && drag.axis === hh.axis;
+      s += `<line class="crline" x1="${R(Cs.x)}" y1="${R(Cs.y)}" x2="${R(Hs.x)}" y2="${R(Hs.y)}"/>`;
+      s += `<rect class="crh${hot ? ' hot' : ''}" x="${R(Hs.x - 4.5)}" y="${R(Hs.y - 4.5)}" width="9" height="9"/>`;
+      s += `<text class="flabel" x="${R((Cs.x + Hs.x) / 2 + 8)}" y="${R((Cs.y + Hs.y) / 2 - 8)}">${fe.circle ? 'r' : hh.axis === 'b' ? (Math.abs(fe.b.x) >= Math.abs(fe.b.y) ? 'rx' : 'ry') : (Math.abs(fe.a.x) >= Math.abs(fe.a.y) ? 'rx' : 'ry')} ${R(r)}</text>`;
+    }
+    s += `<circle class="fcd" cx="${R(Cs.x)}" cy="${R(Cs.y)}" r="7"/><path class="fc" d="M${R(Cs.x - 4)} ${R(Cs.y)}h8M${R(Cs.x)} ${R(Cs.y - 4)}v8"/>`;
+  }
   if (drag && drag.kind === 'circle' && hover) {
     const a = toScreen(drag.c), b = toScreen(hover);
     s += `<path class="fc" d="M${R(a.x - 4)} ${R(a.y)}h8M${R(a.x)} ${R(a.y - 4)}v8"/><line class="cguide" x1="${R(a.x)}" y1="${R(a.y)}" x2="${R(b.x)}" y2="${R(b.y)}"/>`;
@@ -594,7 +657,7 @@ function renderInspector() {
   $('#sumList').textContent = `${items().length}`;
   for (const id of ['#pSharp', '#pSmooth', '#pFree', '#cClose', '#cRev', '#pDel']) $(id).disabled = !sel.size && !(active !== null && ['#cClose', '#cRev'].includes(id));
   const dt = $('#dtext');
-  if (document.activeElement !== dt) { dt.value = glyphD(g); $('#dnote').className = 'note'; $('#dnote').textContent = `Edit to reshape the ${noun()}. M L H V C S Q T Z, absolute or relative.`; }
+  if (document.activeElement !== dt) { dt.value = g.contours.map(contourLine).filter(Boolean).join('\n'); $('#dnote').className = 'note'; $('#dnote').textContent = `Edit to reshape the ${noun()}. M L H V C S Q T Z, absolute or relative.`; }
   hlD();
 }
 function renderUnderlayPanel(g) {
@@ -609,7 +672,11 @@ function renderUnderlayPanel(g) {
 }
 function hlD() {
   const t = $('#dtext');
-  $('#dhl').innerHTML = `${t.value.replace(/([MmLlHhVvCcSsQqTtZzAa])|([^MmLlHhVvCcSsQqTtZzAa]+)/g, (m, c, o) => c ? `<span class="c">${c}</span>` : esc(o))}\n`;
+  const code = x => x.replace(/([MmLlHhVvCcSsQqTtZzAa])|([^MmLlHhVvCcSsQqTtZzAa]+)/g, (m, c, o) => c ? `<span class="c">${c}</span>` : esc(o));
+  $('#dhl').innerHTML = `${t.value.split('\n').map(line => {
+    const at = line.indexOf('//');
+    return at < 0 ? code(line) : `${code(line.slice(0, at))}<span class="cm">${esc(line.slice(at))}</span>`;
+  }).join('\n')}\n`;
   t.style.height = 'auto'; t.style.height = `${t.scrollHeight + 2}px`;
 }
 
@@ -678,14 +745,14 @@ function setMode(m) {
   ensureDrawings(font);
   [cur, curOther] = [curOther, cur]; mode = m;
   cur = Math.max(0, Math.min(cur, items().length - 1));
-  sel.clear(); active = null; refSeg = null; hoverSeg = null; focusSeg = null; focusFil = null; armed.clear(); ulEdit = false;
+  sel.clear(); active = null; refSeg = null; hoverSeg = null; focusSeg = null; focusFil = null; armed.clear(); ulEdit = false; focusCirc = null;
   fit(); save(); render();
 }
 function zoomAt(sx, sy, f) {
   const w = toWorld(sx, sy); view.k = Math.min(40, Math.max(.05, view.k * f));
   view.tx = sx - w.x * view.k; view.ty = sy - w.y * view.k;
 }
-function selectGlyph(gi) { if (gi === cur || gi < 0 || gi >= items().length) return; ulEdit = false; divideMode = null; if (cornerMode) finishCorner(true); cur = gi; sel.clear(); active = null; refSeg = null; hoverSeg = null; focusSeg = null; focusFil = null; armed.clear(); fit(); render(); }
+function selectGlyph(gi) { if (gi === cur || gi < 0 || gi >= items().length) return; ulEdit = false; divideMode = null; focusCirc = null; if (cornerMode) finishCorner(true); cur = gi; sel.clear(); active = null; refSeg = null; hoverSeg = null; focusSeg = null; focusFil = null; armed.clear(); fit(); render(); }
 
 /* ---------- canvas interaction ---------- */
 function local(e) { const r = cv.getBoundingClientRect(); return { sx: e.clientX - r.left, sy: e.clientY - r.top }; }
@@ -721,6 +788,12 @@ cv.addEventListener('pointerdown', e => {
     sel = new Set(); active = null; render(); return;
   }
   focusFil = null;
+  if (h && h.type === 'ccentre') {
+    const c = g.contours[h.ci]; sel = new Set(c.nodes.map((_, ni) => key(h.ci, ni)));
+    startMove({ ci: h.ci, ni: 0 }, e, w, before, true); drag.circ = ellipseInfo(c).C; return;
+  }
+  if (h && h.type === 'crad') { drag = { kind: 'crad', ci: h.ci, axis: h.axis, e0: ellipseInfo(g.contours[h.ci]), before }; render(); return; }
+  focusCirc = h && h.type === 'seg' && tool === 'select' && ellipseInfo(g.contours[h.ci]) ? h.ci : null;
   if (h && h.type === 'fcenter') { focusFil = key(h.ci, h.ai); drag = { kind: 'fillet', ci: h.ci, ai: h.ai, before }; render(); return; }
   if (h && h.type === 'seg' && !e.shiftKey && tool === 'select') {
     const c = g.contours[h.ci], f = filletInfo(c, h.ni);
@@ -805,8 +878,9 @@ window.addEventListener('pointermove', e => {
     case 'move': {
       let dx = w.x - drag.w0.x, dy = w.y - drag.w0.y;
       const axis = (e.ctrlKey || e.metaKey) && e.shiftKey ? (Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y') : null;
-      dx = axis === 'y' ? 0 : sn(drag.grab.x + dx) - drag.grab.x;
-      dy = axis === 'x' ? 0 : sn(drag.grab.y + dy) - drag.grab.y;
+      const ref = drag.circ || drag.grab;
+      dx = axis === 'y' ? 0 : sn(ref.x + dx) - ref.x;
+      dy = axis === 'x' ? 0 : sn(ref.y + dy) - ref.y;
       for (const [kk, o] of drag.orig) {
         const n = nodeOf(kk); n.x = o.x + dx; n.y = o.y + dy;
         n.i = o.i && { x: o.i.x + dx, y: o.i.y + dy }; n.o = o.o && { x: o.o.x + dx, y: o.o.y + dy };
@@ -826,6 +900,19 @@ window.addEventListener('pointermove', e => {
       break;
     }
     case 'adv': G().adv = Math.max(0, Math.round(sn(w.x))); break;
+    case 'crad': {
+      const e0 = drag.e0, c = G().contours[drag.ci], snapR = v => Math.max(snapOn ? gridSize : .1, snapOn ? Math.round(v / gridSize) * gridSize : R(v));
+      if (e0.circle) {
+        const r = snapR(Math.hypot(w.x - e0.C.x, w.y - e0.C.y)), f = r / e0.ra;
+        setEllipseVec(c, e0.C, { x: e0.a.x * f, y: e0.a.y * f }, { x: e0.b.x * f, y: e0.b.y * f });
+      } else {
+        const v = e0[drag.axis], len = drag.axis === 'a' ? e0.ra : e0.rb;
+        const r = snapR(Math.abs(((w.x - e0.C.x) * v.x + (w.y - e0.C.y) * v.y) / len)), f = r / len;
+        const nv = { x: v.x * f, y: v.y * f };
+        setEllipseVec(c, e0.C, drag.axis === 'a' ? nv : e0.a, drag.axis === 'b' ? nv : e0.b);
+      }
+      break;
+    }
     case 'circle': {
       const dx = w.x - drag.c.x, dy = w.y - drag.c.y, snapR = v => snapOn ? Math.round(v / gridSize) * gridSize : R(v);
       if (e.shiftKey) { drag.rx = snapR(Math.abs(dx)); drag.ry = snapR(Math.abs(dy)); }
@@ -881,7 +968,7 @@ window.addEventListener('pointerup', () => {
   if (drag.kind === 'circle') {
     const g = G(), c = g.contours[drag.ci];
     if (!c || c.nodes.length < 4) g.contours.splice(drag.ci, 1);
-    else { sel = new Set(c.nodes.map((_, ni) => key(drag.ci, ni))); flash(`${drag.rx === drag.ry ? `Circle r ${drag.rx}` : `Ellipse ${drag.rx} × ${drag.ry}`} at ${R(drag.c.x)}, ${R(drag.c.y)}.`); }
+    else { sel = new Set(c.nodes.map((_, ni) => key(drag.ci, ni))); focusCirc = drag.ci; flash(`${drag.rx === drag.ry ? `Circle r ${drag.rx}` : `Ellipse ${drag.rx} × ${drag.ry}`} at ${R(drag.c.x)}, ${R(drag.c.y)}.`); }
   }
   if (drag.before !== undefined) commit(drag.before);
   drag = null; render();
@@ -1061,6 +1148,7 @@ cv.addEventListener('contextmenu', e => {
 function selByContour() { const m = new Map(); for (const k of sel) { const [ci, ni] = unkey(k); if (!m.has(ci)) m.set(ci, []); m.get(ci).push(ni); } return m; }
 function targetContours() { const s = new Set(selByContour().keys()); if (active !== null) s.add(active); return [...s]; }
 function deleteSelected() {
+  focusCirc = null;
   if (!sel.size) return;
   edit(() => {
     const g = G(), m = selByContour();
@@ -1182,7 +1270,7 @@ $('#dtext').oninput = e => {
   const note = $('#dnote');
   hlD();
   try {
-    const cs = parseD(e.target.value);
+    const cs = parseD(stripComments(e.target.value));
     G().contours = cs; sel.clear(); active = null;
     note.className = 'note'; note.textContent = `${cs.length} contour${cs.length === 1 ? '' : 's'} parsed.`;
     renderCanvas(); renderList(); renderPreview(); save();
@@ -1197,7 +1285,8 @@ async function copyText(text, noteEl, okMsg, fallbackEl) {
     noteEl.className = 'note'; noteEl.textContent = 'Clipboard is blocked here. The text is selected; press Ctrl+C.';
   }
 }
-$('#bCopyD').onclick = () => copyText(glyphD(G()), $('#dnote'), `Copied the path data for “${G().id}”.`, $('#dtext'));
+$('#bCopyD').onclick = () => copyText($('#dtext').value, $('#dnote'), `Copied the path data for “${G().id}”, as shown.`, $('#dtext'));
+$('#bCopyDPlain').onclick = () => copyText(glyphD(G()), $('#dnote'), `Copied the path data for “${G().id}” without comments, on one line.`, null);
 
 /* ---------- export / import ---------- */
 function bbox(items) {
@@ -1394,7 +1483,7 @@ window.addEventListener('keydown', e => {
   }
   else if (k === '+' || k === '=') setArm(true);
   else if (k === '-' || k === '_') setArm(false);
-  else if (k === 'Escape') { if (armed.size) { armed.clear(); render(); return; } focusSeg = null; focusFil = null; if (refSeg) refSeg = null; else if (active !== null) active = null; else sel.clear(); render(); }
+  else if (k === 'Escape') { if (armed.size) { armed.clear(); render(); return; } focusSeg = null; focusFil = null; focusCirc = null; if (refSeg) refSeg = null; else if (active !== null) active = null; else sel.clear(); render(); }
   else if (k === 'Delete' || k === 'Backspace') { e.preventDefault(); deleteSelected(); }
   else if (k === '[') selectGlyph(cur - 1);
   else if (k === ']') selectGlyph(cur + 1);
@@ -1410,6 +1499,7 @@ window.addEventListener('blur', () => { spaceDown = false; });
 /* ---------- copy / paste ---------- */
 let clip = null, pasteHandled = false;
 function copySel(cut) {
+  focusCirc = null;
   const g = G(), whole = !sel.size;
   const cis = whole ? g.contours.map((_, i) => i) : [...selByContour().keys()];
   if (!cis.length) { flash('Nothing to copy: this glyph is empty.'); return; }
@@ -1444,7 +1534,7 @@ document.addEventListener('paste', e => {
   try {
     const cs = t[0] === '<'
       ? [...new DOMParser().parseFromString(t, 'image/svg+xml').querySelectorAll('path')].flatMap(p => parseD(p.getAttribute('d') || ''))
-      : parseD(t);
+      : parseD(stripComments(t));
     if (!cs.length) throw Error('no contours found');
     pasteContours(cs, 0, false);
   } catch (err) { flash(`The clipboard doesn’t hold path data (${err.message}).`); }

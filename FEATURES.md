@@ -48,6 +48,7 @@ Every glyph and drawing can have one image to trace over.
 | **Esc** | Finish the contour |
 | **V** | Select tool |
 | **O**, then drag | Circle from the centre, radius snapped to the grid. **Shift**-drag makes an ellipse. It's built from 4 smooth points, so it edits like any other contour |
+| Click a circle's outline | Select it as a circle: the outline turns red, with a ⊕ centre and a □ radius handle (one per axis on an ellipse). Drag ⊕ to move it (the centre snaps to the grid) and □ to resize it |
 | **I** over a segment | Insert a point at the cursor; curves keep their shape |
 | **D**, then **1–9** | Divide the hovered segment (or every segment between selected points) with that many evenly spaced points |
 | Double-click a segment | Insert a point (Select tool) |
@@ -81,6 +82,10 @@ Every glyph and drawing can have one image to trace over.
 - **Metrics:** cap height, x-height, baseline and descender. **G** hides the baseline and descender guides.
 
 ## Path data
+
+- The box shows one contour per line. Circles and ellipses get a comment such as `// circle  c 480,470  r 230`.
+- Comments are display-only. Anything after `//` is ignored when you edit the box or paste path text, and exports never include them.
+- **Copy** copies the text as shown. **Copy without comments**, under the box, copies plain path data on one line.
 
 - The **path data** box shows the glyph's `d` attribute with commands highlighted. Editing it updates the glyph live.
 - The parser accepts M L H V C S Q T Z, absolute or relative. Quadratics become cubics. Arcs (A) aren't supported yet.

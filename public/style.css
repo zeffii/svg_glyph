@@ -103,6 +103,9 @@ kbd{font-family:inherit;color:var(--dim);margin-left:1ch}
 #cv .ulmiss{fill:none;stroke:var(--guide);stroke-width:1;stroke-dasharray:6 4}
 #cv .ullabel{fill:var(--guide);font:12px var(--mono)}
 #cv .divseg{fill:none;stroke:var(--magenta);stroke-width:3;stroke-linecap:round;opacity:.7}
+#cv .crline{stroke:var(--cmd);stroke-width:1;stroke-dasharray:4 3}
+#cv .crh{fill:var(--board);stroke:var(--cmd);stroke-width:1.5;cursor:pointer}
+#cv .crh.hot{fill:var(--cmd)}
 #cv .marq{fill:var(--cyan);fill-opacity:.08;stroke:var(--cyan);stroke-width:1;stroke-dasharray:3 3}
 
 .insp{border-left:1px solid var(--line);overflow:auto;min-height:0}
@@ -132,6 +135,7 @@ textarea{width:100%;box-sizing:border-box;background:var(--field);border:0;borde
 #dhl,#dtext{margin:0;box-sizing:border-box;width:100%;padding:4px 6px;border:0;border-radius:0;font:12px/1.5 var(--mono);white-space:pre-wrap;overflow-wrap:break-word;word-break:normal;letter-spacing:0}
 #dhl{position:absolute;inset:0;overflow:hidden;pointer-events:none;color:var(--fg)}
 #dhl .c{color:var(--cmd)}
+#dhl .cm{color:var(--par)}
 #dtext{position:relative;display:block;min-height:120px;overflow:hidden;resize:none;background:transparent;color:transparent;caret-color:var(--fg)}
 .keys{color:var(--muted);display:grid;grid-template-columns:auto 1fr;gap:1px 2ch;font-size:12px}
 .keys code{font-family:inherit;color:var(--fg);white-space:nowrap}

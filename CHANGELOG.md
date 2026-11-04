@@ -2,6 +2,17 @@
 
 Newest first. Each numbered entry is one build; the number shows in the app header next to the commit.
 
+## 012 · 2026-11-04
+
+- **Circles stay circles.** Any contour that forms a true circle or ellipse is recognised from its shape: 4 smooth points with the right handles, in any start point or direction, including imported ones.
+  - Clicking its outline selects it as a circle. The outline turns red, with a ⊕ centre and a □ radius handle (one per axis on an ellipse).
+  - Drag ⊕ to move it (the centre snaps to the grid) and □ to resize it (snapped).
+  - Reshape it some other way and it becomes an ordinary contour.
+- **Path data box:**
+  - One contour per line. Circles and ellipses get a green display-only comment (`// circle  c 480,470  r 230`).
+  - `//` comments are ignored when editing or pasting, and never exported.
+  - New **Copy without comments** button under the box. The bar's Copy copies the text as shown.
+
 ## 011 · 2026-11-04
 
 - **Circle tool (O):** drag from the centre to set the radius, which snaps to the grid. Shift-drag makes an ellipse. A live guide shows the radius. The circle is four cubic quarter-arcs on four smooth points (within 0.03% of a true circle), so it can be divided, filleted, copied and edited like any other contour. It works in both modes, and the new circle comes out selected.
