@@ -2,6 +2,10 @@
 
 Newest first. Each numbered entry is one build; the number shows in the app header next to the commit.
 
+## 021 · 2026-11-04
+
+- **Scroll wheel zooms around the shape.** The centre of all points in the current glyph or drawing stays put on screen, wherever the mouse is. An empty one zooms around its em box or artboard. Ctrl+wheel (and trackpad pinch) still zooms at the cursor, Shift+wheel scrolls sideways, and Alt+wheel now scrolls up and down; previously plain wheel scrolled.
+
 ## 020 · 2026-11-04
 
 - **PDF export.** File → **Download PDF**, and locally **Save PDF to exports/**, give the same artwork as the SVG export: the proof line in Glyphs mode, or the current drawing at artboard size in Logo mode.
