@@ -2,6 +2,10 @@
 
 Newest first. Each numbered entry is one build; the number shows in the app header next to the commit.
 
+## 023 · 2026-11-04
+
+- **S** makes the selected points Smooth: handles stay in line with independent lengths. It sits alongside E for Equal. On an Equal point, S removes the equal-length lock.
+
 ## 022 · 2026-11-04
 
 - **Scroll wheel zooms around the mouse position**: the point under the cursor stays put. This replaces 021's zoom around the shape's centre. Ctrl+wheel and pinch do the same. Shift+wheel scrolls sideways and Alt+wheel scrolls up and down.

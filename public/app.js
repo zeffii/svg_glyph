@@ -1544,6 +1544,7 @@ window.addEventListener('keydown', e => {
     const [ci, ni, h] = hoverH.split(':'), err = alignHandle(+ci, +ni, h);
     flash(err || 'Handle lined up. Use Smooth, Equal or the chain icon to keep it in line.');
   }
+  else if (k === 's' || k === 'S') { if (sel.size) { setType('smooth'); flash(`Smooth on ${sel.size} point${sel.size > 1 ? 's' : ''}: handles stay in line, lengths stay independent.`); } else flash('Select points, then press S to make them Smooth.'); }
   else if (k === 'e' || k === 'E') { if (sel.size) { setType('equal'); flash(`Handles made equal on ${sel.size} point${sel.size > 1 ? 's' : ''}.`); } else flash('Select points, then press E to give their handles equal length.'); }
   else if (k === 'h' || k === 'H') showKeys(true);
   else if (k === 'm' || k === 'M') setMode(mode === 'logo' ? 'glyph' : 'logo');

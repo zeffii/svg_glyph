@@ -72,7 +72,7 @@
       <div class="bar"><span>Points</span><span class="sum" id="selinfo"></span></div>
       <div class="kv"><span>Position</span><span class="vals"><input type="number" id="nx" step="1" aria-label="X"><input type="number" id="ny" step="1" aria-label="Y"></span></div>
       <div class="kv"><span>Type</span><span class="vals" role="group" aria-label="Point type">
-        <button id="pSharp" title="Remove handles">Sharp</button><button id="pSmooth" title="Aligned handles">Smooth</button><button id="pEqual" title="Aligned handles of equal length (E)">Equal</button><button id="pFree" title="Independent handles">Free</button>
+        <button id="pSharp" title="Remove handles">Sharp</button><button id="pSmooth" title="Handles stay in line, lengths independent (S)">Smooth</button><button id="pEqual" title="Aligned handles of equal length (E)">Equal</button><button id="pFree" title="Independent handles">Free</button>
       </span></div>
       <div class="kv"><span>Contour</span><span class="vals">
         <button id="cClose" title="Close or open the contour (C)">Close</button><button id="cRev" title="Reverse direction">Reverse</button><button id="pDel" class="danger" title="Delete selected points (Del)">Del pts</button>
@@ -158,6 +158,7 @@
         <code>Space-drag</code><span>Pan (or middle mouse)</span>
         <code>Wheel</code><span>Zoom around the mouse position (also Ctrl+wheel and trackpad pinch); Shift+wheel scrolls sideways, Alt+wheel up and down</span>
         <code>A</code><span>Hover a control point: swing it into line with the point’s other handle (or the straight line on the other side), keeping its length</span>
+        <code>S</code><span>Smooth: keep the selected points' handles in line, each with its own length</span>
         <code>E</code><span>Equal: give the selected points' handles the same length, mirrored while you drag</span>
         <code>Alt-drag</code><span>Break a smooth handle</span>
         <code>Chain icon</code><span>Click to lock / unlink collinear arms: on a selected point (its two arms), or between a segment’s facing arms</span>
