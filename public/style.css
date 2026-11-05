@@ -126,6 +126,8 @@ kbd{font-family:inherit;color:var(--dim);margin-left:1ch}
 #cv .gline{stroke:var(--gd);stroke-width:1;stroke-dasharray:8 5;opacity:.75}
 #cv .gline.hot{stroke-width:2;opacity:1;stroke-dasharray:none}
 #cv .glabel{fill:var(--gd);font:12px var(--mono)}
+#cv .tracepv{fill:var(--gd);fill-opacity:.18;fill-rule:evenodd;stroke:var(--gd);stroke-width:1.2;vector-effect:non-scaling-stroke}
+#cv .brush{fill:none;stroke:var(--gd);stroke-width:1;stroke-dasharray:3 3;pointer-events:none}
 #cv .marq{fill:var(--cyan);fill-opacity:.08;stroke:var(--cyan);stroke-width:1;stroke-dasharray:3 3}
 
 .insp{border-left:1px solid var(--line);overflow:auto;min-height:0}
@@ -205,3 +207,9 @@ input[type=range]{accent-color:var(--muted);width:14ch;margin:0}
 .insp .sec.folded>.bar{margin-bottom:0}
 .insp .sec[data-fold]>.bar:hover{background:var(--field)}
 .bar>span:first-child{white-space:nowrap;flex-shrink:0}
+.tracebox{margin-top:6px;border-top:1px solid var(--line);padding-top:4px;display:flex;flex-direction:column;gap:3px}
+.tbhead{padding:0 10px;color:var(--gd)}
+#maskimg{pointer-events:none}
+.tracebox .note{padding:0 10px}
+.tracebox input[type=range]{width:12ch}
+.insp .sec[data-fold="underlay"]>.btns>button{padding:1px 5px}

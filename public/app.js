@@ -2,6 +2,7 @@ import { R, P, N, contourD, contourTokens, glyphD, parseD, isAligned } from './p
 import { ulToWorld, ulToImage, ulSetBase, ulTransform, ulCorners, ulHit, ulFit, newUnderlay } from './underlay.js';
 import { putImage, imageURL, imageSize } from './images.js';
 import { pdfDocument } from './pdf.js';
+import { inkMask, traceMask } from './trace.js';
 
 const $ = s => document.querySelector(s);
 const SKEY = 'glyphpath.v1';
@@ -599,10 +600,12 @@ function renderCanvas() {
     s += `<rect class="marq" x="${Math.min(a.x, b.x)}" y="${Math.min(a.y, b.y)}" width="${Math.abs(b.x - a.x)}" height="${Math.abs(b.y - a.y)}"/>`;
   }
   if (ulEdit && g.ul) s += underlayHandles(g.ul);
+  if (traceMode) s += renderTrace();
   $('#ovl').innerHTML = s;
   $('#zoomlbl').textContent = `${Math.round(k * 100)}%`;
   $('#hint').innerHTML = flashMsg ? `<b>${esc(flashMsg)}</b>`
     : divideMode ? `<b>Divide</b> · press 1–9 for how many points to add (${divideMode.targets.length} segment${divideMode.targets.length > 1 ? 's' : ''}), Esc to cancel`
+    : traceMode ? '<b>Trace</b> · paint the areas to trace (Shift-drag erases), adjust the sliders, then Add contours; Esc cancels'
     : ulEdit ? '<b>Underlay</b> · drag the image to move it, drag ⊕ to move the basepoint (or double-click the image), drag ○ to rotate and □ to scale around the basepoint; Shift snaps rotation to 15°, U or Esc to finish'
     : cornerMode ? `<b>${cornerMode.type === 'fillet' ? 'Fillet' : 'Chamfer'}</b> · move away from the corner to set the ${cornerMode.type === 'fillet' ? 'radius' : 'cut'}, click or Enter to apply, Esc or right-click to cancel`
     : refSeg ? '<b>Reference line set</b> · hover another line and press L to make it parallel, Esc to cancel'
@@ -655,7 +658,86 @@ function hitUl(sx, sy) {
   if (ulHit(ul, toWorld(sx, sy))) return 'ulmove';
   return null;
 }
+/* ---------- trace: underlay image → contours ----------
+   The image is read at up to TRACE_MAX px, optionally limited to a painted mask, traced in trace.js,
+   and previewed in place. "Add contours" adds the preview to the glyph or drawing as one undo step. */
+const TRACE_MAX = 1000;
+let traceMode = null;   // { ul, tw, th, f, rgba, maskCv, maskCtx, painted, preview, painting }
+let traceTimer = 0;
+const trOpt = () => ({
+  threshold: +$('#trTh').value, light: $('#trLight').checked, smooth: +$('#trSm').value,
+  tolerance: +$('#trTol').value / 10, cornerDeg: +$('#trCo').value, minArea: +$('#trSp').value,
+});
+function trLabels() {
+  const o = trOpt();
+  $('#trThV').textContent = o.threshold; $('#trSmV').textContent = o.smooth; $('#trTolV').textContent = `${o.tolerance.toFixed(1)} px`;
+  $('#trCoV').textContent = `${o.cornerDeg}°`; $('#trSpV').textContent = `${o.minArea} px²`; $('#trBrV').textContent = `${$('#trBr').value} px`;
+}
+async function startTrace() {
+  const ul = G().ul;
+  if (!ul) { flash('Import an image first.'); return; }
+  const url = imageURL(ul.img, requestRender);
+  if (!url) { flash(url === null ? 'This image isn’t stored in this browser. Import it again to trace it.' : 'The image is still loading; try again in a moment.'); return; }
+  const im = new Image(); im.src = url;
+  try { await im.decode(); } catch (e) { flash('The image couldn’t be read for tracing.'); return; }
+  const f = Math.min(1, TRACE_MAX / Math.max(im.naturalWidth, im.naturalHeight));
+  const tw = Math.max(1, Math.round(im.naturalWidth * f)), th = Math.max(1, Math.round(im.naturalHeight * f));
+  const cvs = document.createElement('canvas'); cvs.width = tw; cvs.height = th;
+  const ctx = cvs.getContext('2d', { willReadFrequently: true }); ctx.drawImage(im, 0, 0, tw, th);
+  const maskCv = document.createElement('canvas'); maskCv.width = tw; maskCv.height = th;
+  ulEdit = false; sel.clear(); active = null;
+  traceMode = { ul, tw, th, f: tw / ul.iw, rgba: ctx.getImageData(0, 0, tw, th).data, maskCv, maskCtx: maskCv.getContext('2d', { willReadFrequently: true }), painted: false, preview: [], maskURL: '' };
+  $('#traceBox').hidden = false; trLabels(); runTrace(); render();
+}
+function endTrace() {
+  traceMode = null; clearTimeout(traceTimer);
+  $('#traceBox').hidden = true; $('#maskimg').style.display = 'none'; render();
+}
+function scheduleTrace() { clearTimeout(traceTimer); traceTimer = setTimeout(runTrace, 120); }
+function runTrace() {
+  const T = traceMode; if (!T) return;
+  let region = null;
+  if (T.painted) {
+    const a = T.maskCtx.getImageData(0, 0, T.tw, T.th).data; region = new Uint8Array(T.tw * T.th);
+    let any = false; for (let i = 0; i < region.length; i++) if (a[i * 4 + 3] > 0) { region[i] = 1; any = true; }
+    if (!any) region = null;
+  }
+  const o = trOpt();
+  const mask = inkMask(T.rgba, T.tw, T.th, { threshold: o.threshold, light: o.light, region });
+  const cs = traceMask(mask, T.tw, T.th, o);
+  // Trace pixels → image pixels → world.
+  const toW = p => { const q = ulToWorld(T.ul, p.x / T.f, p.y / T.f); return { x: R(q.x), y: R(q.y) }; };
+  T.preview = cs.map(c => ({ closed: true, nodes: c.nodes.map(n => ({ ...toW(n), i: n.i && toW(n.i), o: n.o && toW(n.o), s: n.s })) }));
+  const pts = T.preview.reduce((k, c) => k + c.nodes.length, 0);
+  $('#trNote').className = 'note';
+  $('#trNote').textContent = `${T.preview.length} contour${T.preview.length === 1 ? '' : 's'}, ${pts} points${region ? ', inside the painted mask' : ''}. Paint to limit the area (Shift-drag erases).`;
+  requestRender();
+}
+function paintMask(sx, sy, erase) {
+  const T = traceMode, q = ulToImage(T.ul, toWorld(sx, sy));
+  const r = +$('#trBr').value / 2 / (view.k * T.ul.s) * T.f, x = q.x * T.f, y = q.y * T.f, ctx = T.maskCtx;
+  ctx.globalCompositeOperation = erase ? 'destination-out' : 'source-over';
+  ctx.fillStyle = '#B19CF5'; ctx.lineWidth = 2 * r; ctx.lineCap = 'round'; ctx.strokeStyle = '#B19CF5';
+  if (T.last) { ctx.beginPath(); ctx.moveTo(T.last.x, T.last.y); ctx.lineTo(x, y); ctx.stroke(); }
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  T.last = { x, y }; T.painted = true; T.maskURL = '';
+  requestRender();
+}
+function renderTrace() {
+  const T = traceMode, mi = $('#maskimg');
+  if (T.painted) {
+    if (!T.maskURL) { T.maskURL = T.maskCv.toDataURL(); mi.setAttribute('href', T.maskURL); }
+    mi.setAttribute('width', T.tw); mi.setAttribute('height', T.th);
+    mi.setAttribute('transform', `translate(${view.tx} ${view.ty}) scale(${view.k}) ${ulTransform(T.ul)} scale(${1 / T.f})`);
+    mi.style.display = '';
+  } else mi.style.display = 'none';
+  const d = T.preview.map(c => contourD(c)).join(' ');
+  let s = `<g transform="translate(${view.tx} ${view.ty}) scale(${view.k})"><path class="tracepv" d="${d}"/></g>`;
+  if (hover) { const p = toScreen(hover); s += `<circle class="brush" cx="${R(p.x)}" cy="${R(p.y)}" r="${+$('#trBr').value / 2}"/>`; }
+  return s;
+}
 function setUlEdit(on) {
+  if (traceMode) endTrace();
   if (on && !G().ul) { flash('Import an image first: the Underlay panel, or drop one on the board.'); on = false; }
   ulEdit = on; hoverUl = null; render();
 }
@@ -719,7 +801,8 @@ function renderUnderlayPanel(g) {
   const ulFolded = document.querySelector('.insp .sec[data-fold="underlay"]')?.classList.contains('folded');
   $('#sumUl').textContent = !ul ? 'none'
     : `${ul.name} · ${Math.round(ul.op * 100)}%${ulFolded ? `${ul.inv ? ' · inverted' : ''}${ul.vis === false ? ' · hidden' : ''}` : ''}`;
-  for (const id of ['#ulEdit', '#ulFit', '#ulRemove', '#ulOp', '#ulVis', '#ulInv', '#ulX', '#ulY', '#ulRot', '#ulS']) $(id).disabled = !ul;
+  for (const id of ['#ulEdit', '#ulTrace', '#ulFit', '#ulRemove', '#ulOp', '#ulVis', '#ulInv', '#ulX', '#ulY', '#ulRot', '#ulS']) $(id).disabled = !ul;
+  $('#ulTrace').classList.toggle('on', !!traceMode);
   $('#ulEdit').classList.toggle('on', ulEdit);
   setVal('#ulOp', ul ? Math.round(ul.op * 100) : 50); $('#ulOpV').textContent = ul ? `${Math.round(ul.op * 100)}%` : '';
   $('#ulVis').checked = ul ? ul.vis !== false : true; $('#ulInv').checked = !!ul?.inv;
@@ -814,6 +897,7 @@ function fit() {
 }
 function setMode(m) {
   if (m === mode) return;
+  if (traceMode) endTrace();
   if (cornerMode) finishCorner(true);
   ensureDrawings(font);
   [cur, curOther] = [curOther, cur]; mode = m;
@@ -825,7 +909,7 @@ function zoomAt(sx, sy, f) {
   const w = toWorld(sx, sy); view.k = Math.min(40, Math.max(.05, view.k * f));
   view.tx = sx - w.x * view.k; view.ty = sy - w.y * view.k;
 }
-function selectGlyph(gi) { if (gi === cur || gi < 0 || gi >= items().length) return; ulEdit = false; weldAsk = null; divideMode = null; focusCirc = null; if (cornerMode) finishCorner(true); cur = gi; sel.clear(); active = null; refSeg = null; hoverSeg = null; focusSeg = null; focusFil = null; armed.clear(); fit(); render(); }
+function selectGlyph(gi) { if (gi === cur || gi < 0 || gi >= items().length) return; if (traceMode) endTrace(); ulEdit = false; weldAsk = null; divideMode = null; focusCirc = null; if (cornerMode) finishCorner(true); cur = gi; sel.clear(); active = null; refSeg = null; hoverSeg = null; focusSeg = null; focusFil = null; armed.clear(); fit(); render(); }
 
 /* ---------- canvas interaction ---------- */
 function local(e) { const r = cv.getBoundingClientRect(); return { sx: e.clientX - r.left, sy: e.clientY - r.top }; }
@@ -856,6 +940,7 @@ cv.addEventListener('pointerdown', e => {
   cv.setPointerCapture(e.pointerId);
   if (e.button === 1 || (e.button === 0 && spaceDown)) { e.preventDefault(); drag = { kind: 'pan', sx, sy, tx: view.tx, ty: view.ty }; return; }
   if (e.button !== 0) return;
+  if (traceMode) { traceMode.last = null; drag = { kind: 'paint', erase: e.shiftKey }; paintMask(sx, sy, e.shiftKey); return; }
   if (ulEdit) {
     const t = hitUl(sx, sy), ul = G().ul, before = snapshot();
     if (!t) return;
@@ -942,6 +1027,7 @@ window.addEventListener('pointermove', e => {
     if (e.target !== cv && !cv.contains(e.target)) return;
     hover = w; hoverS = { sx, sy };
     if (cornerMode) { cv.style.cursor = 'crosshair'; updateCorner(Math.round(Math.hypot(w.x - cornerMode.ref.x, w.y - cornerMode.ref.y))); return; }
+    if (traceMode) { cv.style.cursor = spaceDown ? 'grab' : 'crosshair'; requestRender(); return; }
     if (ulEdit) {
       const t = spaceDown ? null : hitUl(sx, sy);
       if (t !== hoverUl) { hoverUl = t; requestRender(); }
@@ -969,6 +1055,7 @@ window.addEventListener('pointermove', e => {
   }
   switch (drag.kind) {
     case 'pan': view.tx = drag.tx + sx - drag.sx; view.ty = drag.ty + sy - drag.sy; break;
+    case 'paint': hover = w; paintMask(sx, sy, drag.erase); break;
     case 'move': {
       let dx = w.x - drag.w0.x, dy = w.y - drag.w0.y;
       const axis = (e.ctrlKey || e.metaKey) && e.shiftKey ? (Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y') : null;
@@ -1076,6 +1163,7 @@ window.addEventListener('pointerup', () => {
   }
   if (!weldAsk) clearTimeout(weldTimer);
   guideHit = null;
+  if (drag.kind === 'paint') { drag = null; runTrace(); return; }
   if (drag.before !== undefined) commit(drag.before);
   drag = null; render();
 });
@@ -1581,6 +1669,20 @@ for (const [id, k] of [['#dw', 'w'], ['#dh', 'h']])
 
 /* ---------- underlay panel ---------- */
 $('#ulImport').onclick = () => $('#ulFile').click();
+$('#ulTrace').onclick = () => (traceMode ? endTrace() : startTrace());
+for (const id of ['#trTh', '#trSm', '#trTol', '#trCo', '#trSp']) $(id).addEventListener('input', () => { trLabels(); scheduleTrace(); });
+$('#trLight').onchange = () => scheduleTrace();
+$('#trBr').addEventListener('input', () => { trLabels(); requestRender(); });
+$('#trClear').onclick = () => { const T = traceMode; if (!T) return; T.maskCtx.clearRect(0, 0, T.tw, T.th); T.painted = false; T.maskURL = ''; runTrace(); };
+$('#trCancel').onclick = () => { endTrace(); flash('Trace cancelled.'); };
+$('#trAdd').onclick = () => {
+  const T = traceMode; if (!T) return;
+  if (!T.preview.length) { $('#trNote').className = 'note err'; $('#trNote').textContent = 'Nothing to add: adjust the threshold or paint over some ink.'; return; }
+  const add = T.preview, start = G().contours.length;
+  edit(() => { G().contours.push(...clone(add)); sel = new Set(); add.forEach((c, k) => c.nodes.forEach((_, ni) => sel.add(key(start + k, ni)))); });
+  endTrace();
+  flash(`Added ${add.length} traced contour${add.length === 1 ? '' : 's'} (${add.reduce((k, c) => k + c.nodes.length, 0)} points). Ctrl+Z undoes.`);
+};
 $('#ulFile').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) importImage(f); };
 $('#ulEdit').onclick = () => setUlEdit(!ulEdit);
 $('#ulFit').onclick = () => edit(() => { G().ul = ulFit(G().ul, frameOf(G())); });
@@ -1795,6 +1897,7 @@ window.addEventListener('keydown', e => {
   if (!$('#modal').hidden) { if (e.key === 'Escape') $('#modal').hidden = true; return; }
   if (e.target.closest('input,textarea,select')) return;
   if (cornerMode) { if (e.key === 'Escape') finishCorner(false); else if (e.key === 'Enter') finishCorner(true); e.preventDefault(); return; }
+  if (traceMode && e.key === 'Escape' && !e.target.closest('input,textarea,select')) { e.preventDefault(); endTrace(); flash('Trace cancelled.'); return; }
   if (weldAsk) {
     const kk = e.key.toLowerCase();
     if (kk === 'y' || kk === 'enter') { e.preventDefault(); answerWeld(true); return; }
@@ -1948,7 +2051,7 @@ fetch('version.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).t
   const el = $('#ver'); el.textContent = `${v.build ? `#${v.build}` : ''}${v.commit ? ` · ${v.commit}` : ''}`.replace(/^ · /, '');
   el.title = `Commit ${v.commit || '?'}${v.date ? `, ${v.date}` : ''}`;
 }).catch(() => {});
-cv.innerHTML = '<image id="ulimg" preserveAspectRatio="none" style="display:none"/><g id="ovl"></g>';
+cv.innerHTML = '<image id="ulimg" preserveAspectRatio="none" style="display:none"/><image id="maskimg" preserveAspectRatio="none" style="display:none;opacity:.35"/><g id="ovl"></g>';
 let fitted = false;
 await load();
 setSaveState(serverOk ? 'saved' : 'saved in browser');

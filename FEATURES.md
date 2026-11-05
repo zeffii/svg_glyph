@@ -38,6 +38,21 @@ Every glyph and drawing can have one image to trace over.
   - **Remove** takes it off (Ctrl+Z undoes).
 - **Storage:** images are stored in this browser (IndexedDB), not in the project JSON. Placement settings travel with the project, but the image file itself doesn't. On another browser you'll see an outline asking you to import it again.
 
+## Trace
+
+**Trace…** in the Underlay panel turns the image into editable contours, in the same way Potrace works.
+
+1. **Ink:** pixels darker than the **Threshold** count as ink. Tick **light on dark** for light artwork on a dark background. Transparent pixels count as background.
+2. **Mask (optional):** paint on the board to trace only those areas. **Shift**-drag erases, **Brush** sets the size and **Clear** resets the mask. With nothing painted, the whole image is traced.
+3. **Live preview:** the result is shown in lavender, with a count of contours and points. Adjust it with:
+   - **Smooth:** evens out pixel steps.
+   - **Detail:** the fit tolerance; lower keeps more detail.
+   - **Corners:** turns sharper than this angle become corners.
+   - **Specks:** ignores dots smaller than this area.
+4. **Add contours** puts the result into the glyph or drawing as one undo step, with the new points selected. **Esc** or **Cancel** leaves without changes.
+
+Straight edges come out as true lines, curves as smooth cubic points, and holes as separate contours. Large images are traced at up to 1000 px on their longest side.
+
 ## Drawing
 
 | Do this | Result |

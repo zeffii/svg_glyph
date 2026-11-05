@@ -24,6 +24,7 @@ Both folders are created on first save and are git-ignored.
 - `serve.mjs`: static server plus a small JSON API (`GET/PUT /api/project`, `PUT /api/export/<name>.svg` or `.pdf`).
 - `public/index.html`, `public/style.css`: the page.
 - `public/app.js`: the editor.
+- `public/trace.js`: image → contours tracer (threshold, outline following, corners, Bézier fitting).
 - `public/path.js`: path-data model, parser and writer (shared with the tests).
 - `test/`: `npm test` (node's built-in test runner).
 

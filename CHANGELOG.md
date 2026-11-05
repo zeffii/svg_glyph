@@ -2,6 +2,20 @@
 
 Newest first. Each numbered entry is one build; the number shows in the app header next to the commit.
 
+## 027 · 2026-11-05
+
+- **Image tracing.** **Trace…** in the Underlay panel turns the underlay into editable contours with a live lavender preview:
+  - **Threshold**, plus **light on dark** for light artwork.
+  - **Smooth**, **Detail** (fit tolerance), **Corners** (angle) and **Specks** (minimum area).
+  - **Paintable mask:** paint over the features you want traced. Shift-drag erases, Brush sets the size, Clear resets it, and with nothing painted the whole image is traced.
+  - **Add contours** adds the result as one undo step. Esc or Cancel leaves without changes.
+- **How it traces** (`public/trace.js`, no dependencies, 5 tests):
+  - Pixel outlines are followed, including holes.
+  - Corners are found from the turning angle.
+  - The staircase is smoothed, and cubic Béziers are fitted with Schneider's algorithm.
+  - Straight runs become true lines, and collinear lines are merged.
+- Tested on a blurred, speckled scan: the A comes out as straight edges with serifs and the g as smooth curves, the specks are ignored, and the mask leaves out a blob.
+
 ## 026 · 2026-11-04
 
 - **Guides (marker lines).** Hover a control handle (or a straight segment) and press **T** for an infinite lavender guide through that point at that angle. **Shift+T** over a guide deletes it. Guides are saved with the glyph or drawing, undoable, and never exported.

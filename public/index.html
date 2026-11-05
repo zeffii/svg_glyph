@@ -91,7 +91,7 @@
     <div class="sec" data-fold="underlay">
       <div class="bar"><span>Underlay</span><span class="sum" id="sumUl"></span></div>
       <div class="btns">
-        <button id="ulImport" title="Pick an image to trace over (or drop / paste one on the board)">Import…</button><button id="ulEdit" title="Move, rotate and scale the image (U)">Place<kbd>U</kbd></button><button id="ulFit" title="Reset: upright, centred and fitted">Fit</button><button id="ulRemove" class="danger">Remove</button>
+        <button id="ulImport" title="Pick an image to trace over (or drop / paste one on the board)">Import…</button><button id="ulEdit" title="Move, rotate and scale the image (U)">Place<kbd>U</kbd></button><button id="ulTrace" title="Turn the image into editable contours">Trace…</button><button id="ulFit" title="Reset: upright, centred and fitted">Fit</button><button id="ulRemove" class="danger">Remove</button>
         <input type="file" id="ulFile" accept="image/*" hidden>
       </div>
       <div class="kv"><span>Opacity</span><span class="vals nowrap"><input type="range" id="ulOp" min="0" max="100" step="1" aria-label="Opacity"><span id="ulOpV" class="m"></span></span></div>
@@ -99,6 +99,18 @@
       <div class="kv"><span>Basepoint</span><span class="vals"><input type="number" id="ulX" step="1" aria-label="Basepoint X"><input type="number" id="ulY" step="1" aria-label="Basepoint Y"></span></div>
       <div class="kv"><span>Rotate</span><span class="vals"><input type="number" id="ulRot" step="1" aria-label="Rotation in degrees"><span class="m">°</span></span></div>
       <div class="kv"><span>Scale</span><span class="vals"><input type="number" id="ulS" step="0.01" min="0.001" aria-label="Scale"></span></div>
+      <div id="traceBox" class="tracebox" hidden>
+        <div class="tbhead">Trace</div>
+        <div class="kv"><span>Threshold</span><span class="vals nowrap"><input type="range" id="trTh" min="1" max="254" value="128" aria-label="Threshold"><span id="trThV" class="m"></span></span></div>
+        <div class="kv"><span>Shapes</span><span class="vals"><label><input type="checkbox" id="trLight"> light on dark</label></span></div>
+        <div class="kv"><span>Smooth</span><span class="vals nowrap"><input type="range" id="trSm" min="0" max="6" value="2" aria-label="Smoothing"><span id="trSmV" class="m"></span></span></div>
+        <div class="kv"><span>Detail</span><span class="vals nowrap"><input type="range" id="trTol" min="3" max="40" value="12" aria-label="Fit tolerance (lower is more detail)"><span id="trTolV" class="m"></span></span></div>
+        <div class="kv"><span>Corners</span><span class="vals nowrap"><input type="range" id="trCo" min="20" max="150" value="60" aria-label="Corner angle"><span id="trCoV" class="m"></span></span></div>
+        <div class="kv"><span>Specks</span><span class="vals nowrap"><input type="range" id="trSp" min="0" max="400" value="16" aria-label="Ignore specks smaller than"><span id="trSpV" class="m"></span></span></div>
+        <div class="kv"><span>Brush</span><span class="vals nowrap"><input type="range" id="trBr" min="4" max="120" value="30" aria-label="Mask brush size"><span id="trBrV" class="m"></span><button id="trClear" title="Clear the painted mask">Clear</button></span></div>
+        <div class="note" id="trNote">Paint on the board to limit the trace to those areas (Shift-drag erases). Nothing painted traces the whole image.</div>
+        <div class="btns"><button id="trAdd">Add contours</button><button id="trCancel">Cancel</button></div>
+      </div>
     </div>
 
     <div class="sec" data-fold="path">
@@ -146,6 +158,7 @@
         <code>J</code><span>Join: hover an open end and it moves onto the other end, closing the contour with no extra segment. With two open ends selected, they weld into one contour at their midpoint (Shift+J: at the first one)</span>
         <code>Drag end → end</code><span>Drag an open end onto another (within 8 screen pixels): it highlights, and after half a second asks “Weld? Y / N”</span>
         <code>T / Shift+T</code><span>Hover a handle (or straight segment) and press T for an infinite guide line at its angle; Shift+T over a guide deletes it. Dragged points snap onto guides, and their straight lines snap parallel or perpendicular to them (hold Alt to drag freely)</span>
+        <code>Trace…</code><span>Underlay panel: turn the image into contours. Paint a mask on the board to trace only those areas (Shift-drag erases); sliders adjust threshold, smoothing, detail, corners and specks with a live preview</span>
         <code>D, then 1–9</code><span>Divide the hovered segment (or segments between selected points) by adding that many evenly spaced points</span>
         <code>Shift-drag line</code><span>Move that segment (both its points)</span>
         <code>Ctrl+Shift-drag</code><span>Move horizontally or vertically only</span>
